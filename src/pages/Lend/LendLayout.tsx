@@ -77,7 +77,7 @@ export default function LendLayout() {
 
         {/* Main Content Area */}
         <div className="flex-1 min-h-screen">
-          <main className="h-full">
+          <main className="h-full pt-20">
             <Outlet />
           </main>
         </div>

@@ -14,68 +14,9 @@ import {
   Zap,
 } from "lucide-react";
 import React, { useState } from "react";
+import { FloatingOrbs } from "../components/FloatingOrbs";
+import { GlowingButton } from "../components/GlowingButton";
 import Navbar from "../components/Navigation/Navbar";
-
-const FloatingOrbs = () => {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <motion.div
-        className="absolute w-96 h-96 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 rounded-full blur-3xl"
-        animate={{
-          x: [0, 100, 0],
-          y: [0, -100, 0],
-        }}
-        transition={{
-          duration: 20,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        style={{ top: "10%", left: "10%" }}
-      />
-      <motion.div
-        className="absolute w-72 h-72 bg-gradient-to-r from-teal-500/20 to-purple-500/20 rounded-full blur-3xl"
-        animate={{
-          x: [0, -150, 0],
-          y: [0, 100, 0],
-        }}
-        transition={{
-          duration: 25,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        style={{ top: "60%", right: "10%" }}
-      />
-    </div>
-  );
-};
-
-type GlowingButtonProps = {
-  children: React.ReactNode;
-  variant?: "primary" | "secondary";
-  onClick?: React.MouseEventHandler<HTMLButtonElement>;
-  className?: string;
-};
-
-const GlowingButton = ({ children, variant = "primary", onClick, className = "" }: GlowingButtonProps) => {
-  const baseClasses = "relative px-8 py-4 rounded-xl font-medium transition-all duration-300 group";
-  const variants = {
-    primary: "bg-gradient-to-r from-purple-500 to-cyan-500 text-white hover:shadow-lg hover:shadow-purple-500/25",
-    secondary:
-      "border-2 border-purple-500/50 text-purple-300 hover:border-purple-400 hover:text-purple-200 hover:shadow-lg hover:shadow-purple-500/25",
-  };
-
-  return (
-    <motion.button
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      className={`${baseClasses} ${variants[variant]} ${className}`}
-      onClick={onClick}
-    >
-      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 rounded-xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      <span className="relative flex items-center gap-2">{children}</span>
-    </motion.button>
-  );
-};
 
 const WalletCard = () => {
   return (

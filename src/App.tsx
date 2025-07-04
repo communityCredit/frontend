@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
+import Lend from "./pages/Lend/Deposit";
 import LendLayout from "./pages/Lend/LendLayout";
 
 function App() {
@@ -8,7 +9,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route element={<LendLayout />}>
-          <Route path="/lend/deposit" element={<div>Lend</div>} />
+          <Route path="/lend/deposit" element={<Lend />} />
         </Route>
       </Routes>
     </BrowserRouter>
