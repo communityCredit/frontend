@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
 import { Wallet } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Navbar = () => {
+  const navigate = useNavigate();
   return (
     <motion.nav
       initial={{ opacity: 0, y: -20 }}
@@ -24,6 +26,7 @@ const Navbar = () => {
           {/* Navigation Buttons */}
           <div className="flex items-center gap-4">
             <motion.button
+              onClick={() => navigate("/borrow")}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="px-6 py-2 text-purple-300 hover:text-white transition-colors duration-300 font-medium"
@@ -31,6 +34,7 @@ const Navbar = () => {
               Borrow
             </motion.button>
             <motion.button
+              onClick={() => navigate("/lend")}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="px-6 py-2 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-lg font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300"
