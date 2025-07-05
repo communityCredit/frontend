@@ -14,47 +14,19 @@ import {
   Loader,
   Scan,
   Send,
-  Settings,
   Wallet,
   X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { flowTestnet } from "viem/chains";
 import ConnectWalletButton from "../../components/ConnectWalletButton";
 import { FloatingOrbs } from "../../components/FloatingOrbs";
 import { GlowingButton } from "../../components/GlowingButton";
-
-type TopBarProps = {
-  onSettingsClick: () => void;
-  isConnected: boolean;
-  walletAddress: string;
-  onConnect: () => void;
-};
-
-const TopBar = ({ onSettingsClick }: TopBarProps) => {
-  return (
-    <div className="flex items-center justify-between mb-8">
-      <div>
-        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white via-purple-200 to-cyan-200 bg-clip-text text-transparent">
-          Use Your Credit
-        </h1>
-      </div>
-
-      <div className="flex items-center gap-4">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onSettingsClick}
-          className="p-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-gray-400 hover:text-white hover:border-purple-500/50 transition-all duration-300"
-        >
-          <Settings className="w-5 h-5" />
-        </motion.button>
-        <ConnectWalletButton />
-      </div>
-    </div>
-  );
-};
+import { CREDIT_MANAGER_ABI } from "../../contracts/abis/CreditManager";
+import { USDC_ABI } from "../../contracts/abis/USDC";
+import { getWalletClient, publicClient } from "../../utils/viemUtils";
 
 type CreditSummaryBannerProps = {
   creditLimit: number;
@@ -158,7 +130,6 @@ const TabToggle = ({ activeTab, onTabChange }: TabToggleProps) => {
   );
 };
 
-// QR Code Scanner Modal Component
 type QRScannerModalProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -172,7 +143,6 @@ const QRScannerModal = ({ isOpen, onClose, onScan }: QRScannerModalProps) => {
     if (scanResult) {
       onScan(scanResult);
       setScanResult(undefined);
-      console.log("QR Code Scanned:", scanResult);
     }
   }, [scanResult, onScan]);
   if (!isOpen) return null;
@@ -215,11 +185,25 @@ const QRScannerModal = ({ isOpen, onClose, onScan }: QRScannerModalProps) => {
 type PaymentSectionProps = {
   availableCredit: number;
   onPayment: (data: { recipientAddress: string; paymentAmount: string }) => void;
+  recipientAddress: string;
+  setRecipientAddress: (address: string) => void;
+  paymentAmount: string;
+  setPaymentAmount: (amount: string) => void;
+  isProcessing: boolean;
 };
 
-const PaymentSection = ({ availableCredit, onPayment }: PaymentSectionProps) => {
-  const [recipientAddress, setRecipientAddress] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
+const CREDIT_MANAGER_ADDRESS = import.meta.env.VITE_CREDIT_MANAGER_ADDRESS;
+const USDC_ADDRESS = import.meta.env.VITE_USDC_TOKEN_CONTRACT_ADDRESS;
+
+const PaymentSection = ({
+  availableCredit,
+  onPayment,
+  recipientAddress,
+  setRecipientAddress,
+  paymentAmount,
+  setPaymentAmount,
+  isProcessing,
+}: PaymentSectionProps) => {
   const [showQRScanner, setShowQRScanner] = useState(false);
 
   const estimatedInterest = paymentAmount ? (parseFloat(paymentAmount) * 0.05) / 12 : 0;
@@ -272,7 +256,6 @@ const PaymentSection = ({ availableCredit, onPayment }: PaymentSectionProps) => 
           </div>
         </div>
 
-        {/* Payment Amount */}
         <div>
           <div className="flex justify-between items-center mb-2">
             <label className="text-sm font-medium text-gray-400">Payment Amount</label>
@@ -304,28 +287,25 @@ const PaymentSection = ({ availableCredit, onPayment }: PaymentSectionProps) => 
           )}
         </div>
 
-        {/* Pay Button */}
         <GlowingButton
           onClick={() => onPayment({ recipientAddress, paymentAmount })}
           className="w-full"
-          disabled={!isValidPayment}
+          disabled={!isValidPayment || isProcessing}
         >
-          Pay Now
-          <Send className="w-5 h-5" />
+          {isProcessing ? (
+            <>
+              <Loader className="w-5 h-5 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              Pay Now
+              <Send className="w-5 h-5" />
+            </>
+          )}
         </GlowingButton>
-
-        {/* Info Note */}
-        <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-gray-300">
-              Payments draw from your credit line. Interest applies after 30-day grace period.
-            </p>
-          </div>
-        </div>
       </motion.div>
 
-      {/* QR Scanner Modal */}
       <AnimatePresence>
         {showQRScanner && (
           <QRScannerModal isOpen={showQRScanner} onClose={() => setShowQRScanner(false)} onScan={handleQRScan} />
@@ -433,9 +413,19 @@ type Transaction = {
   amount: number;
   date: string;
   status: string;
+  hash?: string;
+  blockNumber?: number;
 };
 
-const RecentTransactions = ({ transactions }: { transactions: Transaction[] }) => {
+const RecentTransactions = ({
+  transactions,
+  loading,
+  onRefresh,
+}: {
+  transactions: Transaction[];
+  loading: boolean;
+  onRefresh?: () => void;
+}) => {
   const getTransactionIcon = (type: string): React.ReactElement => {
     switch (type) {
       case "payment":
@@ -444,6 +434,8 @@ const RecentTransactions = ({ transactions }: { transactions: Transaction[] }) =
         return <Download className="w-4 h-4 text-green-400" />;
       case "repay":
         return <ArrowUp className="w-4 h-4 text-cyan-400" />;
+      case "stake":
+        return <Wallet className="w-4 h-4 text-purple-400" />;
       default:
         return <DollarSign className="w-4 h-4 text-gray-400" />;
     }
@@ -462,64 +454,407 @@ const RecentTransactions = ({ transactions }: { transactions: Transaction[] }) =
     return statusColorMap[status] || "text-gray-400";
   };
 
+  const getTransactionLabel = (type: string): string => {
+    switch (type) {
+      case "borrow":
+        return "Borrowed";
+      case "repay":
+        return "Repaid";
+      case "stake":
+        return "Staked Collateral";
+      case "payment":
+        return "Payment";
+      default:
+        return type.charAt(0).toUpperCase() + type.slice(1);
+    }
+  };
+
+  const openTransactionHash = (hash?: string) => {
+    if (hash) {
+      window.open(`https://evm-testnet.flowscan.io/tx/${hash}`, "_blank");
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.3 }}
-      className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-6"
+      className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-6 h-full flex flex-col"
     >
-      <h3 className="text-lg font-semibold text-white mb-4">Recent Transactions</h3>
-
-      <div className="space-y-3">
-        {transactions.map((tx, index) => (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
-            className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl"
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
+        <h3 className="text-lg font-semibold text-white">Recent Transactions</h3>
+        {onRefresh && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onRefresh}
+            disabled={loading}
+            className="p-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-gray-400 hover:text-white hover:border-purple-500/50 transition-all duration-300 disabled:opacity-50"
+            title="Refresh transactions"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center">
-                {getTransactionIcon(tx.type)}
-              </div>
-              <div>
-                <div className="text-white font-medium capitalize">{tx.type}</div>
-                <div className="text-gray-400 text-sm">{tx.date}</div>
-              </div>
+            <motion.div
+              animate={loading ? { rotate: 360 } : { rotate: 0 }}
+              transition={{ duration: 1, repeat: loading ? Infinity : 0, ease: "linear" }}
+            >
+              <ArrowRight className="w-4 h-4 transform rotate-45" />
+            </motion.div>
+          </motion.button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-hidden">
+        {loading ? (
+          <div className="text-center py-8">
+            <Loader className="w-8 h-8 text-purple-400 mx-auto mb-3 animate-spin" />
+            <p className="text-gray-400 text-sm">Loading transaction history...</p>
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center mx-auto mb-3">
+              <DollarSign className="w-6 h-6 text-gray-400" />
             </div>
-            <div className="text-right">
-              <div className="text-white font-medium">${tx.amount.toLocaleString()}</div>
-              <div className={`text-sm capitalize ${getStatusColor(tx.status)}`}>{tx.status}</div>
-            </div>
-          </motion.div>
-        ))}
+            <p className="text-gray-400 text-sm">No transactions found</p>
+            <p className="text-gray-500 text-xs mt-1">Your transaction history will appear here</p>
+          </div>
+        ) : (
+          <div
+            className="h-full overflow-y-auto space-y-3 scrollbar-hide pr-2"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            {transactions.map((tx, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
+                className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800/70 transition-colors cursor-pointer"
+                onClick={() => openTransactionHash(tx.hash)}
+                title={tx.hash ? "Click to view on explorer" : undefined}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center">
+                    {getTransactionIcon(tx.type)}
+                  </div>
+                  <div>
+                    <div className="text-white font-medium">{getTransactionLabel(tx.type)}</div>
+                    <div className="text-gray-400 text-sm">{tx.date}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-white font-medium">${tx.amount.toLocaleString()}</div>
+                  <div className={`text-sm capitalize ${getStatusColor(tx.status)}`}>{tx.status}</div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </motion.div>
   );
 };
 
 export default function PaymentsPage() {
-  const { ready, authenticated, user, login } = usePrivy();
+  const { authenticated, user, login } = usePrivy();
+
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState("payment");
   const [transactionStatus, setTransactionStatus] = useState<TransactionStatusState | null>(null);
+  const [creditData, setCreditData] = useState({
+    creditLimit: 0,
+    availableCredit: 0,
+    outstandingDebt: 0,
+  });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
+  const [recipientAddress, setRecipientAddress] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Mock data
-  const creditData = {
-    creditLimit: 10000,
-    availableCredit: 6500,
-    outstandingDebt: 3587.5,
+  const fetchUserData = async () => {
+    if (!user?.wallet?.address) return;
+
+    try {
+      const data = await publicClient.readContract({
+        address: CREDIT_MANAGER_ADDRESS as `0x${string}`,
+        abi: CREDIT_MANAGER_ABI,
+        functionName: "getCreditInfo",
+        args: [user.wallet.address as `0x${string}`],
+      });
+
+      if (data && Array.isArray(data)) {
+        const [, creditLimit, borrowedAmount, , totalDebt, , isActive] = data;
+
+        if (!isActive) {
+          navigate("/borrow/stake");
+          return;
+        }
+
+        const creditLimitUSDC = Number(creditLimit) / 1e6;
+        const borrowedAmountUSDC = Number(borrowedAmount) / 1e6;
+        const totalDebtUSDC = Number(totalDebt) / 1e6;
+        const availableCreditUSDC = creditLimitUSDC - borrowedAmountUSDC;
+
+        setCreditData({
+          creditLimit: creditLimitUSDC,
+          availableCredit: availableCreditUSDC,
+          outstandingDebt: totalDebtUSDC,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching credit info:", error);
+      navigate("/borrow/stake");
+    }
   };
 
-  const recentTransactions = [
-    { type: "payment", amount: 250, date: "2 hours ago", status: "completed" },
-    { type: "borrow", amount: 1500, date: "1 day ago", status: "completed" },
-    { type: "payment", amount: 75, date: "3 days ago", status: "completed" },
-    { type: "repay", amount: 500, date: "1 week ago", status: "completed" },
-  ];
+  const fetchTransactionHistory = async () => {
+    if (!user?.wallet?.address) return;
+
+    try {
+      setLoadingTransactions(true);
+      const userAddress = user.wallet.address as `0x${string}`;
+      const contractAddress = CREDIT_MANAGER_ADDRESS as `0x${string}`;
+
+      const currentBlock = await publicClient.getBlockNumber();
+      let fromBlock = currentBlock - 50000n;
+
+      let borrowEvents: any[] = [];
+      let repayEvents: any[] = [];
+      let creditOpenedEvents: any[] = [];
+      let usdcTransferEvents: any[] = [];
+
+      try {
+        [borrowEvents, repayEvents, creditOpenedEvents, usdcTransferEvents] = await Promise.all([
+          publicClient.getLogs({
+            address: contractAddress,
+            event: {
+              anonymous: false,
+              inputs: [
+                { indexed: true, name: "borrower", type: "address" },
+                { indexed: false, name: "amount", type: "uint256" },
+                { indexed: false, name: "totalBorrowed", type: "uint256" },
+                { indexed: false, name: "dueDate", type: "uint256" },
+                { indexed: false, name: "timestamp", type: "uint256" },
+              ],
+              name: "Borrowed",
+              type: "event",
+            },
+            args: { borrower: userAddress },
+            fromBlock,
+            toBlock: currentBlock,
+          }),
+          publicClient.getLogs({
+            address: contractAddress,
+            event: {
+              anonymous: false,
+              inputs: [
+                { indexed: true, name: "borrower", type: "address" },
+                { indexed: false, name: "principalAmount", type: "uint256" },
+                { indexed: false, name: "interestAmount", type: "uint256" },
+                { indexed: false, name: "remainingBalance", type: "uint256" },
+                { indexed: false, name: "timestamp", type: "uint256" },
+              ],
+              name: "Repaid",
+              type: "event",
+            },
+            args: { borrower: userAddress },
+            fromBlock,
+            toBlock: currentBlock,
+          }),
+          publicClient.getLogs({
+            address: contractAddress,
+            event: {
+              anonymous: false,
+              inputs: [
+                { indexed: true, name: "borrower", type: "address" },
+                { indexed: false, name: "collateralAmount", type: "uint256" },
+                { indexed: false, name: "creditLimit", type: "uint256" },
+                { indexed: false, name: "timestamp", type: "uint256" },
+              ],
+              name: "CreditOpened",
+              type: "event",
+            },
+            args: { borrower: userAddress },
+            fromBlock,
+            toBlock: currentBlock,
+          }),
+          publicClient.getLogs({
+            address: USDC_ADDRESS as `0x${string}`,
+            event: {
+              anonymous: false,
+              inputs: [
+                { indexed: true, name: "from", type: "address" },
+                { indexed: true, name: "to", type: "address" },
+                { indexed: false, name: "value", type: "uint256" },
+              ],
+              name: "Transfer",
+              type: "event",
+            },
+            args: { from: userAddress },
+            fromBlock,
+            toBlock: currentBlock,
+          }),
+        ]);
+      } catch (error) {
+        console.warn("Failed to fetch events with large block range, trying without block range:", error);
+
+        try {
+          [borrowEvents, repayEvents, creditOpenedEvents, usdcTransferEvents] = await Promise.all([
+            publicClient.getLogs({
+              address: contractAddress,
+              event: {
+                anonymous: false,
+                inputs: [
+                  { indexed: true, name: "borrower", type: "address" },
+                  { indexed: false, name: "amount", type: "uint256" },
+                  { indexed: false, name: "totalBorrowed", type: "uint256" },
+                  { indexed: false, name: "dueDate", type: "uint256" },
+                  { indexed: false, name: "timestamp", type: "uint256" },
+                ],
+                name: "Borrowed",
+                type: "event",
+              },
+              args: { borrower: userAddress },
+            }),
+            publicClient.getLogs({
+              address: contractAddress,
+              event: {
+                anonymous: false,
+                inputs: [
+                  { indexed: true, name: "borrower", type: "address" },
+                  { indexed: false, name: "principalAmount", type: "uint256" },
+                  { indexed: false, name: "interestAmount", type: "uint256" },
+                  { indexed: false, name: "remainingBalance", type: "uint256" },
+                  { indexed: false, name: "timestamp", type: "uint256" },
+                ],
+                name: "Repaid",
+                type: "event",
+              },
+              args: { borrower: userAddress },
+            }),
+            publicClient.getLogs({
+              address: contractAddress,
+              event: {
+                anonymous: false,
+                inputs: [
+                  { indexed: true, name: "borrower", type: "address" },
+                  { indexed: false, name: "collateralAmount", type: "uint256" },
+                  { indexed: false, name: "creditLimit", type: "uint256" },
+                  { indexed: false, name: "timestamp", type: "uint256" },
+                ],
+                name: "CreditOpened",
+                type: "event",
+              },
+              args: { borrower: userAddress },
+            }),
+            publicClient.getLogs({
+              address: USDC_ADDRESS as `0x${string}`,
+              event: {
+                anonymous: false,
+                inputs: [
+                  { indexed: true, name: "from", type: "address" },
+                  { indexed: true, name: "to", type: "address" },
+                  { indexed: false, name: "value", type: "uint256" },
+                ],
+                name: "Transfer",
+                type: "event",
+              },
+              args: { from: userAddress },
+            }),
+          ]);
+        } catch (fallbackError) {
+          console.error("Failed to fetch events even without block range:", fallbackError);
+        }
+      }
+
+      const allTransactions: Transaction[] = [];
+
+      borrowEvents.forEach((event) => {
+        if (event.args) {
+          const amount = Number(event.args.amount) / 1e6;
+          const timestamp = Number(event.args.timestamp) * 1000;
+          allTransactions.push({
+            type: "borrow",
+            amount,
+            date: new Date(timestamp).toLocaleDateString(),
+            status: "completed",
+            hash: event.transactionHash,
+            blockNumber: Number(event.blockNumber),
+          });
+        }
+      });
+
+      repayEvents.forEach((event) => {
+        if (event.args) {
+          const amount = (Number(event.args.principalAmount) + Number(event.args.interestAmount)) / 1e6;
+          const timestamp = Number(event.args.timestamp) * 1000;
+          allTransactions.push({
+            type: "repay",
+            amount,
+            date: new Date(timestamp).toLocaleDateString(),
+            status: "completed",
+            hash: event.transactionHash,
+            blockNumber: Number(event.blockNumber),
+          });
+        }
+      });
+
+      creditOpenedEvents.forEach((event) => {
+        if (event.args) {
+          const amount = Number(event.args.collateralAmount) / 1e6;
+          const timestamp = Number(event.args.timestamp) * 1000;
+          allTransactions.push({
+            type: "stake",
+            amount,
+            date: new Date(timestamp).toLocaleDateString(),
+            status: "completed",
+            hash: event.transactionHash,
+            blockNumber: Number(event.blockNumber),
+          });
+        }
+      });
+
+      usdcTransferEvents.forEach((event) => {
+        if (event.args) {
+          const amount = Number(event.args.value) / 1e6;
+          if (amount > 0.01) {
+            const blockAge = Number(currentBlock - event.blockNumber) * 15;
+            const estimatedTimestamp = Date.now() - blockAge * 1000;
+
+            allTransactions.push({
+              type: "payment",
+              amount,
+              date: new Date(estimatedTimestamp).toLocaleDateString(),
+              status: "completed",
+              hash: event.transactionHash,
+              blockNumber: Number(event.blockNumber),
+            });
+          }
+        }
+      });
+
+      allTransactions.sort((a, b) => (b.blockNumber || 0) - (a.blockNumber || 0));
+
+      const sortedTransactions = allTransactions.slice(0, 5);
+
+      setTransactions(sortedTransactions);
+    } catch (error) {
+      console.error("Error fetching transaction history:", error);
+      setTransactions([]);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authenticated && user?.wallet?.address) {
+      fetchUserData();
+      fetchTransactionHistory();
+    }
+  }, [authenticated, user?.wallet?.address]);
+
+  const recentTransactions = transactions;
 
   interface PaymentData {
     recipientAddress: string;
@@ -531,30 +866,85 @@ export default function PaymentsPage() {
     message: string;
   }
 
-  const handlePayment = (data: PaymentData): void => {
-    setTransactionStatus({ status: "pending", message: "Processing payment..." });
+  const handlePayment = async (data: PaymentData): Promise<void> => {
+    const { recipientAddress, paymentAmount } = data;
+    const amount = parseFloat(paymentAmount);
 
-    setTimeout(() => {
-      setTransactionStatus({ status: "success", message: "Payment sent successfully!" });
-      setTimeout(() => setTransactionStatus(null), 3000);
-    }, 2000);
-  };
+    if (!user?.wallet?.address || amount <= 0) {
+      setTransactionStatus({ status: "error", message: "Invalid payment details" });
+      return;
+    }
 
-  interface BorrowData {
-    borrowAmount: string;
-  }
+    try {
+      setIsProcessing(true);
+      setTransactionStatus({ status: "pending", message: "Preparing payment..." });
 
-  const handleBorrow = (data: BorrowData): void => {
-    setTransactionStatus({ status: "pending", message: "Processing loan..." });
+      const walletClient = getWalletClient(user.wallet.address);
+      if (!walletClient) {
+        throw new Error("Could not connect to wallet");
+      }
 
-    setTimeout(() => {
-      setTransactionStatus({ status: "success", message: "Funds borrowed successfully!" });
-      setTimeout(() => setTransactionStatus(null), 3000);
-    }, 2000);
-  };
+      const amountInWei = BigInt(Math.floor(amount * 1e6));
 
-  const handleSettingsClick = () => {
-    console.log("Navigate to Dashboard");
+      setTransactionStatus({ status: "pending", message: "Borrowing funds..." });
+
+      const borrowTx = await walletClient.writeContract({
+        address: CREDIT_MANAGER_ADDRESS as `0x${string}`,
+        abi: CREDIT_MANAGER_ABI,
+        functionName: "borrow",
+        args: [amountInWei],
+        account: user.wallet.address as `0x${string}`,
+        chain: flowTestnet,
+      });
+
+      setTransactionStatus({ status: "pending", message: "Waiting for borrow confirmation..." });
+
+      await publicClient.waitForTransactionReceipt({ hash: borrowTx });
+
+      setTransactionStatus({ status: "pending", message: "Transferring funds to recipient..." });
+
+      const transferTx = await walletClient.writeContract({
+        address: USDC_ADDRESS as `0x${string}`,
+        abi: USDC_ABI,
+        functionName: "transfer",
+        args: [recipientAddress as `0x${string}`, amountInWei],
+        account: user.wallet.address as `0x${string}`,
+        chain: flowTestnet,
+      });
+
+      setTransactionStatus({ status: "pending", message: "Waiting for transfer confirmation..." });
+
+      await publicClient.waitForTransactionReceipt({ hash: transferTx });
+
+      setTransactionStatus({
+        status: "success",
+        message: `Payment of $${amount.toLocaleString()} USDC sent successfully!`,
+      });
+
+      await Promise.all([fetchUserData(), fetchTransactionHistory()]);
+
+      setRecipientAddress("");
+      setPaymentAmount("");
+
+      setTimeout(() => setTransactionStatus(null), 5000);
+    } catch (error: any) {
+      console.error("Payment error:", error);
+      let errorMessage = "Payment failed. Please try again.";
+
+      if (error.message?.includes("insufficient")) {
+        errorMessage = "Insufficient credit limit for this payment.";
+      } else if (error.message?.includes("rejected")) {
+        errorMessage = "Transaction was rejected by user.";
+      } else if (error.message?.includes("credit line")) {
+        errorMessage = "Credit line not active. Please stake collateral first.";
+      }
+
+      setTransactionStatus({ status: "error", message: errorMessage });
+
+      setTimeout(() => setTransactionStatus(null), 8000);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (!authenticated) {
@@ -587,28 +977,23 @@ export default function PaymentsPage() {
       <FloatingOrbs />
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
-        {/* Top Bar */}
-        <TopBar
-          onSettingsClick={handleSettingsClick}
-          isConnected={authenticated}
-          walletAddress={user?.wallet?.address || ""}
-          onConnect={login}
-        />
+        <div className="mb-8">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white via-purple-200 to-cyan-200 bg-clip-text text-transparent">
+            Use Your Credit
+          </h1>
+          <ConnectWalletButton />
+        </div>
 
-        {/* Credit Summary Banner */}
         <CreditSummaryBanner
           creditLimit={creditData.creditLimit}
           availableCredit={creditData.availableCredit}
           outstandingDebt={creditData.outstandingDebt}
         />
 
-        {/* Tab Toggle */}
         <TabToggle activeTab={activeTab} onTabChange={setActiveTab} />
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            {/* Action Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          <div className="space-y-6 flex flex-col">
             <AnimatePresence mode="wait">
               {activeTab === "payment" ? (
                 <motion.div
@@ -617,8 +1002,17 @@ export default function PaymentsPage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
+                  className="flex-1"
                 >
-                  <PaymentSection availableCredit={creditData.availableCredit} onPayment={handlePayment} />
+                  <PaymentSection
+                    availableCredit={creditData.availableCredit}
+                    onPayment={handlePayment}
+                    recipientAddress={recipientAddress}
+                    setRecipientAddress={setRecipientAddress}
+                    paymentAmount={paymentAmount}
+                    setPaymentAmount={setPaymentAmount}
+                    isProcessing={isProcessing}
+                  />
                 </motion.div>
               ) : (
                 <motion.div
@@ -627,23 +1021,28 @@ export default function PaymentsPage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
+                  className="flex-1"
                 >
                   <ReceiveSection walletAddress={user?.wallet?.address || ""} />
                 </motion.div>
               )}
+              <GlowingButton className="mt-4 w-full flex justify-center" onClick={() => navigate("/borrow/dashboard")}>
+                Go to Dashboard
+                <ArrowRight className="w-5 h-5" />
+              </GlowingButton>
             </AnimatePresence>
 
-            {/* Transaction Status */}
             <TransactionStatus status={transactionStatus?.status} message={transactionStatus?.message} />
           </div>
 
-          {/* Recent Transactions */}
-          <RecentTransactions transactions={recentTransactions} />
+          <div className="lg:h-full">
+            <RecentTransactions
+              transactions={recentTransactions}
+              loading={loadingTransactions}
+              onRefresh={fetchTransactionHistory}
+            />
+          </div>
         </div>
-        <GlowingButton className="mt-4 w-full flex justify-center" onClick={() => navigate("/borrow/dashboard")}>
-          Go to Dashboard
-          <ArrowRight className="w-5 h-5" />
-        </GlowingButton>
       </div>
     </div>
   );

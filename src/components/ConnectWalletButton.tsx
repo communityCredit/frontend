@@ -12,10 +12,15 @@ export default function ConnectWalletButton() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           onClick={() => logout()}
-          className="flex items-center gap-3 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/50 rounded-xl px-8 py-2 backdrop-blur-xl"
+          className="flex items-center gap-3 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/50 rounded-xl px-8 py-2 backdrop-blur-xl cursor-pointer"
         >
           <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-          <div className=" font-medium text-white">Disconnect</div>
+          <div>
+            <div className="font-medium text-white">Disconnect</div>
+            <div className="text-sm text-gray-300">
+              {user?.wallet?.address?.slice(0, 6)}...{user?.wallet?.address?.slice(-4)}
+            </div>
+          </div>
           <Wallet className="w-5 h-5 text-purple-400" />
         </motion.div>
       ) : (
@@ -23,7 +28,7 @@ export default function ConnectWalletButton() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           onClick={() => login()}
-          className="flex items-center gap-3 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/50 rounded-xl px-8 py-2 backdrop-blur-xl"
+          className="flex items-center gap-3 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/50 rounded-xl px-8 py-2 backdrop-blur-xl cursor-pointer"
         >
           <div className=" font-medium text-white">Connect</div>
           <Wallet className="w-5 h-5 text-purple-400" />
