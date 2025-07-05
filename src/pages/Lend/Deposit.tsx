@@ -2,15 +2,18 @@ import { usePrivy } from "@privy-io/react-auth";
 import { motion } from "framer-motion";
 import { AlertCircle, ArrowRight, CheckCircle, DollarSign, Info, Loader, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
-import { parseUnits } from "viem";
+import { createWalletClient, custom, parseUnits } from "viem";
+import { flowTestnet } from "viem/chains";
 import { FloatingOrbs } from "../../components/FloatingOrbs";
 import { GlowingButton } from "../../components/GlowingButton";
+import { INTEREST_RATE_MODEL_ABI } from "../../contracts/abis/InterestRateModel";
 import { LENDING_POOL_ABI } from "../../contracts/abis/LendingPool";
 import { USDC_ABI } from "../../contracts/abis/USDC";
-import { publicClient, walletClient } from "../../utils/viemUtils";
+import { publicClient } from "../../utils/viemUtils";
 
 const LENDING_POOL_ADDRESS = import.meta.env.VITE_LENDING_POOL_CONTRACT_ADDRESS;
 const USDC_TOKEN_ADDRESS = import.meta.env.VITE_USDC_TOKEN_CONTRACT_ADDRESS;
+const INTEREST_RATE_MODEL_ADDRESS = import.meta.env.VITE_INTEREST_RATE_MODEL_CONTRACT_ADDRESS;
 
 type LockupPeriod = {
   months: number;
@@ -71,17 +74,29 @@ export default function Deposit() {
     multiplier: 1.25,
     label: "3 months",
   });
-  const [transactionStatus, setTransactionStatus] = useState("idle");
+  const [transactionStatus, setTransactionStatus] = useState<"idle" | "approving" | "depositing" | "success" | "error">(
+    "idle"
+  );
   const [userBalance, setUserBalance] = useState<string>("0");
   const [userAllowance, setUserAllowance] = useState<string>("0");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [currentAPY, setCurrentAPY] = useState<number>(15.0);
 
   const tokenData = {
     name: "USD Coin",
     symbol: "USDC",
     balance: parseFloat(userBalance) / 1e6,
-    apy: 12.5,
+    apy: currentAPY,
   };
+
+  const walletClient =
+    authenticated && user?.wallet && (window as any).ethereum
+      ? createWalletClient({
+          chain: flowTestnet,
+          transport: custom((window as any).ethereum),
+          account: user.wallet.address as `0x${string}`,
+        })
+      : null;
 
   const fetchUserData = async () => {
     if (!authenticated || !user?.wallet?.address) return;
@@ -104,6 +119,25 @@ export default function Deposit() {
 
       setUserBalance(balance.toString());
       setUserAllowance(allowance.toString());
+
+      if (INTEREST_RATE_MODEL_ADDRESS) {
+        try {
+          const rateParams = await publicClient.readContract({
+            address: INTEREST_RATE_MODEL_ADDRESS as `0x${string}`,
+            abi: INTEREST_RATE_MODEL_ABI,
+            functionName: "rateParams",
+          });
+
+          if (rateParams && Array.isArray(rateParams)) {
+            const [baseRate] = rateParams;
+
+            const apyFromContract = Number(baseRate) / 100;
+            setCurrentAPY(apyFromContract);
+          }
+        } catch (rateError) {
+          console.error("Error fetching interest rate:", rateError);
+        }
+      }
     } catch (error) {
       console.error("Error fetching user data:", error);
     }
@@ -199,7 +233,7 @@ export default function Deposit() {
     return (tokenData.apy * selectedPeriod.multiplier).toFixed(1);
   };
 
-  const isLoading = transactionStatus === "depositing";
+  const isLoading = transactionStatus === "approving" || transactionStatus === "depositing";
   const canDeposit = authenticated && depositAmount && parseFloat(depositAmount) > 0 && !isLoading;
 
   return (
