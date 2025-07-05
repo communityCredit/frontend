@@ -2,14 +2,14 @@ import { usePrivy } from "@privy-io/react-auth";
 import { motion } from "framer-motion";
 import { AlertCircle, ArrowRight, CheckCircle, DollarSign, Info, Loader, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createWalletClient, custom, parseUnits } from "viem";
+import { parseUnits } from "viem";
 import { flowTestnet } from "viem/chains";
 import { FloatingOrbs } from "../../components/FloatingOrbs";
 import { GlowingButton } from "../../components/GlowingButton";
 import { INTEREST_RATE_MODEL_ABI } from "../../contracts/abis/InterestRateModel";
 import { LENDING_POOL_ABI } from "../../contracts/abis/LendingPool";
 import { USDC_ABI } from "../../contracts/abis/USDC";
-import { publicClient } from "../../utils/viemUtils";
+import { getWalletClient, publicClient } from "../../utils/viemUtils";
 
 const LENDING_POOL_ADDRESS = import.meta.env.VITE_LENDING_POOL_CONTRACT_ADDRESS;
 const USDC_TOKEN_ADDRESS = import.meta.env.VITE_USDC_TOKEN_CONTRACT_ADDRESS;
@@ -89,14 +89,7 @@ export default function Deposit() {
     apy: currentAPY,
   };
 
-  const walletClient =
-    authenticated && user?.wallet && (window as any).ethereum
-      ? createWalletClient({
-          chain: flowTestnet,
-          transport: custom((window as any).ethereum),
-          account: user.wallet.address as `0x${string}`,
-        })
-      : null;
+  const walletClient = getWalletClient(user?.wallet?.address as string);
 
   const fetchUserData = async () => {
     if (!authenticated || !user?.wallet?.address) return;
@@ -164,11 +157,15 @@ export default function Deposit() {
 
       const amountWei = parseUnits(depositAmount, 6);
 
+      if (!user?.wallet?.address) return;
+
       const hash = await walletClient.writeContract({
         address: USDC_TOKEN_ADDRESS as `0x${string}`,
         abi: USDC_ABI,
         functionName: "approve",
         args: [LENDING_POOL_ADDRESS as `0x${string}`, amountWei],
+        account: user.wallet.address as `0x${string}`,
+        chain: flowTestnet,
       });
 
       await publicClient.waitForTransactionReceipt({ hash });
@@ -198,6 +195,8 @@ export default function Deposit() {
       setTransactionStatus("depositing");
       setErrorMessage("");
 
+      if (!user?.wallet?.address) return;
+
       const amountWei = parseUnits(depositAmount, 6);
 
       const hash = await walletClient.writeContract({
@@ -205,6 +204,8 @@ export default function Deposit() {
         abi: LENDING_POOL_ABI,
         functionName: "deposit",
         args: [amountWei],
+        account: user.wallet.address as `0x${string}`,
+        chain: flowTestnet,
       });
 
       await publicClient.waitForTransactionReceipt({ hash });
