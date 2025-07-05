@@ -3,6 +3,8 @@ import LandingPage from "./pages/LandingPage";
 import Lend from "./pages/Lend/Deposit";
 import LendLayout from "./pages/Lend/LendLayout";
 import Portfolio from "./pages/Lend/Portfolio";
+import BorrowerDashboard from "./pages/borrow/Dashboard";
+import StakeCollateral from "./pages/borrow/StakeCollateral";
 
 function App() {
   return (
@@ -13,6 +15,8 @@ function App() {
           <Route path="/lend/deposit" element={<Lend />} />
           <Route path="/lend/portfolio" element={<Portfolio />} />
         </Route>
+        <Route path="/borrow" element={<BorrowerDashboard />} />
+        <Route path="/borrow/stake" element={<StakeCollateral />} />
       </Routes>
     </BrowserRouter>
   );
