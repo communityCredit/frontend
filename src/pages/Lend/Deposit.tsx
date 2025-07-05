@@ -1,9 +1,16 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { motion } from "framer-motion";
-import { ArrowRight, DollarSign, Info, Wallet } from "lucide-react";
-import { useState } from "react";
+import { AlertCircle, ArrowRight, CheckCircle, DollarSign, Info, Loader, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
+import { parseUnits } from "viem";
 import { FloatingOrbs } from "../../components/FloatingOrbs";
 import { GlowingButton } from "../../components/GlowingButton";
+import { LENDING_POOL_ABI } from "../../contracts/abis/LendingPool";
+import { USDC_ABI } from "../../contracts/abis/USDC";
+import { publicClient, walletClient } from "../../utils/viemUtils";
+
+const LENDING_POOL_ADDRESS = import.meta.env.VITE_LENDING_POOL_CONTRACT_ADDRESS;
+const USDC_TOKEN_ADDRESS = import.meta.env.VITE_USDC_TOKEN_CONTRACT_ADDRESS;
 
 type LockupPeriod = {
   months: number;
@@ -56,14 +63,7 @@ const LockupPeriodSelector = ({ selectedPeriod, onPeriodChange }: LockupPeriodSe
 };
 
 export default function Deposit() {
-  const { ready, authenticated, user, login, logout } = usePrivy();
-
-  const tokenData = {
-    name: "USD Coin",
-    symbol: "USDC",
-    balance: 1250.75,
-    apy: 12.5,
-  };
+  const { authenticated, user, login } = usePrivy();
 
   const [depositAmount, setDepositAmount] = useState("");
   const [selectedPeriod, setSelectedPeriod] = useState({
@@ -71,6 +71,120 @@ export default function Deposit() {
     multiplier: 1.25,
     label: "3 months",
   });
+  const [transactionStatus, setTransactionStatus] = useState("idle");
+  const [userBalance, setUserBalance] = useState<string>("0");
+  const [userAllowance, setUserAllowance] = useState<string>("0");
+  const [errorMessage, setErrorMessage] = useState<string>("");
+
+  const tokenData = {
+    name: "USD Coin",
+    symbol: "USDC",
+    balance: parseFloat(userBalance) / 1e6,
+    apy: 12.5,
+  };
+
+  const fetchUserData = async () => {
+    if (!authenticated || !user?.wallet?.address) return;
+
+    try {
+      const [balance, allowance] = await Promise.all([
+        publicClient.readContract({
+          address: USDC_TOKEN_ADDRESS as `0x${string}`,
+          abi: USDC_ABI,
+          functionName: "balanceOf",
+          args: [user.wallet.address as `0x${string}`],
+        }),
+        publicClient.readContract({
+          address: USDC_TOKEN_ADDRESS as `0x${string}`,
+          abi: USDC_ABI,
+          functionName: "allowance",
+          args: [user.wallet.address as `0x${string}`, LENDING_POOL_ADDRESS as `0x${string}`],
+        }),
+      ]);
+
+      setUserBalance(balance.toString());
+      setUserAllowance(allowance.toString());
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (authenticated && user?.wallet?.address) {
+      fetchUserData();
+    }
+  }, [authenticated, user?.wallet?.address]);
+
+  const needsApproval = () => {
+    if (!depositAmount || parseFloat(depositAmount) <= 0) return false;
+    const amountWei = parseUnits(depositAmount, 6);
+    return BigInt(userAllowance) < amountWei;
+  };
+
+  const handleApprove = async () => {
+    if (!walletClient || !depositAmount) return;
+
+    try {
+      setTransactionStatus("approving");
+      setErrorMessage("");
+
+      const amountWei = parseUnits(depositAmount, 6);
+
+      const hash = await walletClient.writeContract({
+        address: USDC_TOKEN_ADDRESS as `0x${string}`,
+        abi: USDC_ABI,
+        functionName: "approve",
+        args: [LENDING_POOL_ADDRESS as `0x${string}`, amountWei],
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      await fetchUserData();
+      setTransactionStatus("idle");
+    } catch (error: any) {
+      setErrorMessage(error.shortMessage || error.message || "Approval failed");
+      setTransactionStatus("error");
+      setTimeout(() => setTransactionStatus("idle"), 5000);
+    }
+  };
+
+  const handleDeposit = async () => {
+    if (!authenticated) {
+      login();
+      return;
+    }
+
+    if (!walletClient || !depositAmount || parseFloat(depositAmount) <= 0) return;
+
+    try {
+      if (needsApproval()) {
+        handleApprove();
+      }
+
+      setTransactionStatus("depositing");
+      setErrorMessage("");
+
+      const amountWei = parseUnits(depositAmount, 6);
+
+      const hash = await walletClient.writeContract({
+        address: LENDING_POOL_ADDRESS as `0x${string}`,
+        abi: LENDING_POOL_ABI,
+        functionName: "deposit",
+        args: [amountWei],
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      await fetchUserData();
+      setTransactionStatus("success");
+      setDepositAmount("");
+
+      setTimeout(() => setTransactionStatus("idle"), 3000);
+    } catch (error: any) {
+      setErrorMessage(error.message || "Deposit failed");
+      setTransactionStatus("error");
+    }
+  };
 
   const calculateEstimatedYield = () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) return 0;
@@ -85,27 +199,14 @@ export default function Deposit() {
     return (tokenData.apy * selectedPeriod.multiplier).toFixed(1);
   };
 
-  const handleDeposit = () => {
-    if (!authenticated) {
-      login();
-      return;
-    }
-
-    if (!depositAmount || parseFloat(depositAmount) <= 0) return;
-
-    console.log("Depositing:", {
-      amount: depositAmount,
-      token: tokenData,
-      period: selectedPeriod,
-    });
-  };
+  const isLoading = transactionStatus === "depositing";
+  const canDeposit = authenticated && depositAmount && parseFloat(depositAmount) > 0 && !isLoading;
 
   return (
     <div className="min-h-screen bg-black text-white">
       <FloatingOrbs />
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -142,7 +243,6 @@ export default function Deposit() {
             transition={{ duration: 0.6 }}
             className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 space-y-8"
           >
-            {/* Amount Input */}
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">Deposit Amount</h3>
@@ -154,7 +254,6 @@ export default function Deposit() {
               <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <input
-                    type="number"
                     value={depositAmount}
                     onChange={(e) => setDepositAmount(e.target.value)}
                     placeholder="0.00"
@@ -184,10 +283,8 @@ export default function Deposit() {
               </div>
             </div>
 
-            {/* Lockup Period Selection */}
             <LockupPeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
 
-            {/* Yield Estimation */}
             <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 space-y-4">
               <h3 className="text-lg font-semibold text-white mb-4">Estimated Returns</h3>
 
@@ -221,15 +318,74 @@ export default function Deposit() {
               )}
             </div>
 
-            {/* Deposit Button */}
-            <GlowingButton
-              onClick={handleDeposit}
-              className="w-full text-lg py-6"
-              disabled={!depositAmount || parseFloat(depositAmount) <= 0}
-            >
-              {!authenticated ? "Connect Wallet" : "Deposit & Start Earning"}
-              <DollarSign className="w-5 h-5" />
+            <GlowingButton onClick={handleDeposit} className="w-full text-lg py-6" disabled={!canDeposit}>
+              {transactionStatus === "depositing" ? (
+                <>
+                  <Loader className="w-5 h-5 animate-spin" />
+                  Depositing...
+                </>
+              ) : transactionStatus === "success" ? (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  Deposit Successful!
+                </>
+              ) : !authenticated ? (
+                <>
+                  Connect Wallet
+                  <Wallet className="w-5 h-5" />
+                </>
+              ) : (
+                <>
+                  Deposit & Start Earning
+                  <DollarSign className="w-5 h-5" />
+                </>
+              )}
             </GlowingButton>
+
+            {transactionStatus === "error" && errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-red-500/10 border border-red-500/50 rounded-xl p-4 flex items-center gap-3"
+              >
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <div>
+                  <div className="text-red-400 font-medium">Transaction Failed</div>
+                  <div className="text-red-300 text-sm">{errorMessage}</div>
+                </div>
+              </motion.div>
+            )}
+
+            {transactionStatus === "success" && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-green-500/10 border border-green-500/50 rounded-xl p-4 flex items-center gap-3"
+              >
+                <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                <div>
+                  <div className="text-green-400 font-medium">Deposit Successful!</div>
+                  <div className="text-green-300 text-sm">
+                    Your USDC has been deposited and is now earning interest.
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {authenticated && (
+              <div className="bg-gray-800/30 border border-gray-700/30 rounded-xl p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Your USDC Balance:</span>
+                  <span className="text-white">{tokenData.balance.toFixed(6)} USDC</span>
+                </div>
+                {needsApproval() && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Approval Status:</span>
+                    <span className="text-yellow-400">Approval Required</span>
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
       </div>

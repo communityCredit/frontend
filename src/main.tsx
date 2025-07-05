@@ -1,6 +1,7 @@
 import { PrivyProvider } from "@privy-io/react-auth";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { flowTestnet } from "viem/chains";
 import App from "./App.tsx";
 import "./index.css";
 
@@ -13,6 +14,8 @@ createRoot(document.getElementById("root")!).render(
       appId={appId}
       clientId={clientId}
       config={{
+        defaultChain: flowTestnet,
+        supportedChains: [flowTestnet],
         embeddedWallets: {
           ethereum: {
             createOnLogin: "users-without-wallets",
