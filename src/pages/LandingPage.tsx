@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FloatingOrbs } from "../components/FloatingOrbs";
 import { GlowingButton } from "../components/GlowingButton";
 import Navbar from "../components/Navigation/Navbar";
@@ -161,8 +162,9 @@ const FAQItem = ({ question, answer, isOpen, onClick }: FAQItemProps) => {
   );
 };
 
-export default function DefiCreditLanding() {
+export default function LandingPage() {
   const [openFAQ, setOpenFAQ] = useState<number | null>(null);
+  const navigate = useNavigate();
   const { scrollYProgress } = useScroll();
   const opacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
 
@@ -331,7 +333,7 @@ export default function DefiCreditLanding() {
               transition={{ duration: 0.8 }}
               className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8"
             >
-              <h3 className="text-2xl font-bold text-white mb-6">Yield Tracker</h3>
+              <h3 className="text-2xl font-bold text-white mb-6">Yield</h3>
 
               <div className="space-y-6">
                 <div className="bg-gray-800/50 rounded-xl p-6">
@@ -358,7 +360,10 @@ export default function DefiCreditLanding() {
                   </div>
                 </div>
 
-                <button className="w-full bg-gradient-to-r from-purple-500 to-cyan-500 text-white py-4 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300">
+                <button
+                  onClick={() => navigate("/lend/deposit")}
+                  className="w-full bg-gradient-to-r from-purple-500 to-cyan-500 text-white py-4 rounded-xl font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300"
+                >
                   Deposit Now
                 </button>
               </div>
