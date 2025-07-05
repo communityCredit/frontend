@@ -57,8 +57,8 @@ export default function StakeCollateral() {
         }),
       ]);
 
-      setUserBalance(balance.toString());
-      setUserAllowance(allowance.toString());
+      setUserBalance((balance as bigint).toString());
+      setUserAllowance((allowance as bigint).toString());
 
       if (CREDIT_MANAGER_ADDRESS) {
         try {

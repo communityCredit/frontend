@@ -110,8 +110,8 @@ export default function Deposit() {
         }),
       ]);
 
-      setUserBalance(balance.toString());
-      setUserAllowance(allowance.toString());
+      setUserBalance((balance as bigint).toString());
+      setUserAllowance((allowance as bigint).toString());
 
       if (INTEREST_RATE_MODEL_ADDRESS) {
         try {
