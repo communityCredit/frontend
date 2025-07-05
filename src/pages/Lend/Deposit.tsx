@@ -3,42 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, DollarSign, Info, Wallet } from "lucide-react";
 import { useState } from "react";
 import { FloatingOrbs } from "../../components/FloatingOrbs";
-
-type GlowingButtonProps = React.PropsWithChildren<{
-  variant?: "primary" | "secondary";
-  onClick?: React.MouseEventHandler<HTMLButtonElement>;
-  className?: string;
-  disabled?: boolean;
-}>;
-
-const GlowingButton = ({
-  children,
-  variant = "primary",
-  onClick,
-  className = "",
-  disabled = false,
-}: GlowingButtonProps) => {
-  const baseClasses =
-    "relative px-6 py-4 rounded-xl font-medium transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed";
-  const variants = {
-    primary: "bg-gradient-to-r from-purple-500 to-cyan-500 text-white hover:shadow-lg hover:shadow-purple-500/25",
-    secondary:
-      "border-2 border-purple-500/50 text-purple-300 hover:border-purple-400 hover:text-purple-200 hover:shadow-lg hover:shadow-purple-500/25",
-  };
-
-  return (
-    <motion.button
-      whileHover={{ scale: disabled ? 1 : 1.02 }}
-      whileTap={{ scale: disabled ? 1 : 0.98 }}
-      className={`${baseClasses} ${variants[variant]} ${className}`}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 rounded-xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      <span className="relative flex items-center gap-2 justify-center">{children}</span>
-    </motion.button>
-  );
-};
+import { GlowingButton } from "../../components/GlowingButton";
 
 type LockupPeriod = {
   months: number;
