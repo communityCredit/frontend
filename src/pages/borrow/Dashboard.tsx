@@ -15,6 +15,7 @@ import {
   Target,
   Wallet,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import ConnectWalletButton from "../../components/ConnectWalletButton";
 import { FloatingOrbs } from "../../components/FloatingOrbs";
 import { GlowingButton } from "../../components/GlowingButton";
@@ -246,13 +247,6 @@ const RecentActivity = ({ activities, onViewAll }: RecentActivityProps) => {
     }
   };
 
-  interface StatusColorMap {
-    [key: string]: string;
-    completed: string;
-    pending: string;
-    failed: string;
-  }
-
   const getStatusColor = (status: ActivityStatus): string => {
     switch (status) {
       case "completed":
@@ -314,6 +308,7 @@ const RecentActivity = ({ activities, onViewAll }: RecentActivityProps) => {
 
 export default function BorrowerDashboard() {
   const { ready, authenticated, user, login } = usePrivy();
+  const naviagte = useNavigate();
 
   // Mock data
   const dashboardData = {
@@ -337,6 +332,7 @@ export default function BorrowerDashboard() {
   };
 
   const handleStakeMore = () => {
+    naviagte("/borrow/stake");
     console.log("Navigate to Stake Collateral page");
   };
 
@@ -381,7 +377,7 @@ export default function BorrowerDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white pt-20">
       <FloatingOrbs />
       <ConnectWalletButton />
 

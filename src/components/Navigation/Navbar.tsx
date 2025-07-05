@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import { Wallet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Navbar = () => {
@@ -15,11 +14,13 @@ const Navbar = () => {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <motion.div whileHover={{ scale: 1.05 }} className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg flex items-center justify-center">
-              <Wallet className="w-5 h-5 text-white" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="Logo"
+              className="w-12 h-12 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl flex items-center justify-center"
+            />
             <span className="text-xl font-bold bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">
-              FlowCredit
+              Zivo
             </span>
           </motion.div>
 
@@ -34,7 +35,7 @@ const Navbar = () => {
               Borrow
             </motion.button>
             <motion.button
-              onClick={() => navigate("/lend")}
+              onClick={() => navigate("/lend/deposit")}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="px-6 py-2 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-lg font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300"

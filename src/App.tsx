@@ -3,6 +3,7 @@ import LandingPage from "./pages/LandingPage";
 import Lend from "./pages/Lend/Deposit";
 import LendLayout from "./pages/Lend/LendLayout";
 import Portfolio from "./pages/Lend/Portfolio";
+import BorrowerDashboard from "./pages/borrow/Dashboard";
 import PaymentsPage from "./pages/borrow/PaymentsPage";
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
           <Route path="/lend/portfolio" element={<Portfolio />} />
         </Route>
         <Route path="/borrow" element={<PaymentsPage />} />
+        <Route path="/borrow/dashboard" element={<BorrowerDashboard />} />
       </Routes>
     </BrowserRouter>
   );

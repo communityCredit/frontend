@@ -46,11 +46,13 @@ export const Sidebar = ({ activeTab, onTabChange, isOpen, onToggle }: SidebarPro
           <div className="p-6 border-b border-gray-700/50">
             <div className="flex items-center justify-center">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                  <Wallet className="w-6 h-6 text-white" />
-                </div>
+                <img
+                  src="/logo.png"
+                  alt="Logo"
+                  className="w-12 h-12 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl flex items-center justify-center"
+                />
                 <span className="text-xl font-bold bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">
-                  FlowCredit
+                  Zivo
                 </span>
               </div>
             </div>

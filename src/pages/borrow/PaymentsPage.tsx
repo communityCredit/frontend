@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ConnectWalletButton from "../../components/ConnectWalletButton";
 import { FloatingOrbs } from "../../components/FloatingOrbs";
 import { GlowingButton } from "../../components/GlowingButton";
@@ -334,47 +335,6 @@ const PaymentSection = ({ availableCredit, onPayment }: PaymentSectionProps) => 
   );
 };
 
-// QR Code Component for displaying wallet address
-const QRCodeDisplay = ({ address }: { address: string }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Simple QR code placeholder - in real app, use a QR code library
-  const qrCodeData = `data:image/svg+xml;base64,${btoa(`
-    <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
-      <rect width="200" height="200" fill="white"/>
-      <rect x="20" y="20" width="160" height="160" fill="black"/>
-      <rect x="40" y="40" width="120" height="120" fill="white"/>
-      <rect x="60" y="60" width="80" height="80" fill="black"/>
-      <rect x="80" y="80" width="40" height="40" fill="white"/>
-      <text x="100" y="105" text-anchor="middle" font-size="8" fill="black">QR</text>
-    </svg>
-  `)}`;
-
-  return (
-    <div className="flex flex-col items-center space-y-4">
-      <div className="bg-white p-4 rounded-xl">
-        <img src={qrCodeData} alt="QR Code" className="w-48 h-48" />
-      </div>
-
-      <div className="text-center">
-        <p className="text-sm text-gray-400 mb-2">Your Wallet Address</p>
-        <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 flex items-center gap-2">
-          <span className="text-sm text-white font-mono">{address}</span>
-          <button onClick={handleCopy} className="p-1 hover:bg-gray-700/50 rounded transition-colors">
-            {copied ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 type ReceiveSectionProps = {
   walletAddress: string;
 };
@@ -398,7 +358,7 @@ const ReceiveSection = ({ walletAddress }: ReceiveSectionProps) => {
           fgColor={"#000000"}
           level={"L"}
           imageSettings={{
-            src: "https://static.zpao.com/favicon.png",
+            src: "/logo.png",
             x: undefined,
             y: undefined,
             height: 24,
@@ -413,89 +373,6 @@ const ReceiveSection = ({ walletAddress }: ReceiveSectionProps) => {
           <Info className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
           <p className="text-sm text-gray-300">
             Others can scan this QR code or use your wallet address to send you payments directly.
-          </p>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-type BorrowSectionProps = {
-  availableCredit: number;
-  onBorrow: (data: { borrowAmount: string }) => void;
-};
-
-const BorrowSection = ({ availableCredit, onBorrow }: BorrowSectionProps) => {
-  const [borrowAmount, setBorrowAmount] = useState("");
-
-  const interestRate = 5.0; // 5% APR
-  const gracePeriod = 30; // days
-  const isValidBorrow = borrowAmount && parseFloat(borrowAmount) > 0 && parseFloat(borrowAmount) <= availableCredit;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 space-y-6"
-    >
-      {/* Borrow Amount */}
-      <div>
-        <div className="flex justify-between items-center mb-2">
-          <label className="text-sm font-medium text-gray-400">Borrow Amount</label>
-          <span className="text-sm text-gray-400">Available: ${availableCredit.toLocaleString()} USDC</span>
-        </div>
-        <div className="relative">
-          <input
-            type="number"
-            value={borrowAmount}
-            onChange={(e) => setBorrowAmount(e.target.value)}
-            placeholder="0.00"
-            className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 text-white placeholder-gray-500 focus:border-purple-500/50 focus:outline-none transition-all duration-300 pr-20"
-          />
-          <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
-            <span className="text-gray-400">USDC</span>
-            <button
-              onClick={() => setBorrowAmount(availableCredit.toString())}
-              className="px-3 py-1 bg-purple-500/20 border border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 transition-colors duration-300 text-sm font-medium"
-            >
-              MAX
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Terms Summary */}
-      <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Loan Terms</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-          <div>
-            <div className="text-2xl font-bold text-cyan-400">{interestRate}%</div>
-            <div className="text-gray-400 text-sm">Annual Interest Rate</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-purple-400">{gracePeriod}</div>
-            <div className="text-gray-400 text-sm">Grace Period (Days)</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-white">Flexible</div>
-            <div className="text-gray-400 text-sm">Repayment Terms</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Borrow Button */}
-      <GlowingButton onClick={() => onBorrow({ borrowAmount })} className="w-full" disabled={!isValidBorrow}>
-        Borrow Now
-        <Download className="w-5 h-5" />
-      </GlowingButton>
-
-      {/* Info Note */}
-      <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-gray-300">
-            Borrowed funds are transferred directly to your wallet. Interest accrues after the grace period.
           </p>
         </div>
       </div>
@@ -625,6 +502,7 @@ const RecentTransactions = ({ transactions }: { transactions: Transaction[] }) =
 
 export default function PaymentsPage() {
   const { ready, authenticated, user, login } = usePrivy();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState("payment");
   const [transactionStatus, setTransactionStatus] = useState<TransactionStatusState | null>(null);
@@ -762,6 +640,10 @@ export default function PaymentsPage() {
           {/* Recent Transactions */}
           <RecentTransactions transactions={recentTransactions} />
         </div>
+        <GlowingButton className="mt-4 w-full flex justify-center" onClick={() => navigate("/borrow/dashboard")}>
+          Go to Dashboard
+          <ArrowRight className="w-5 h-5" />
+        </GlowingButton>
       </div>
     </div>
   );
