@@ -5,6 +5,7 @@ import LendLayout from "./pages/Lend/LendLayout";
 import Portfolio from "./pages/Lend/Portfolio";
 import BorrowerDashboard from "./pages/borrow/Dashboard";
 import PaymentsPage from "./pages/borrow/PaymentsPage";
+import StakeCollateral from "./pages/borrow/StakeCollateral";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         </Route>
         <Route path="/borrow" element={<PaymentsPage />} />
         <Route path="/borrow/dashboard" element={<BorrowerDashboard />} />
+        <Route path="/borrow/stake" element={<StakeCollateral />} />
       </Routes>
     </BrowserRouter>
   );

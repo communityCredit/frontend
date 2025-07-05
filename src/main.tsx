@@ -23,7 +23,7 @@ createRoot(document.getElementById("root")!).render(
         },
         appearance: {
           theme: "dark",
-          // logo: "",
+          logo: "/logo.png",
           landingHeader: "Welcome to FlowCredit",
           loginMessage: "Connect your wallet or create an account to access decentralized credit",
         },
