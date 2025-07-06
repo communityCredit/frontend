@@ -19,19 +19,23 @@ import {
   Scan,
   Send,
   Shield,
+  Smartphone,
   Wallet,
   X,
   Zap,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import { encodeFunctionData } from "viem";
 import { flowTestnet } from "viem/chains";
-import ConnectWalletButton from "../../components/ConnectWalletButton";
 import { FloatingOrbs } from "../../components/FloatingOrbs";
 import { GlowingButton } from "../../components/GlowingButton";
 import { CREDIT_MANAGER_ABI } from "../../contracts/abis/CreditManager";
 import { USDC_ABI } from "../../contracts/abis/USDC";
+import { useHaloWallet } from "../../hooks/useHaloWallet";
+import { HaloWallet } from "../../lib/HaloWallet";
 import { getWalletClient, publicClient } from "../../utils/viemUtils";
 
 type CreditSummaryBannerProps = {
@@ -46,11 +50,9 @@ const VirtualCreditCard = ({
   outstandingDebt,
   userAddress,
   isProcessing = false,
-  paymentAmount = "",
 }: CreditSummaryBannerProps & {
   userAddress: string;
   isProcessing?: boolean;
-  paymentAmount?: string;
 }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -175,7 +177,7 @@ const VirtualCreditCard = ({
                 >
                   <Zap className="w-6 h-6 text-yellow-400" />
                 </motion.div>
-                <span className="font-bold text-lg">CryptoCredit</span>
+                <span className="font-bold text-lg">Zivo</span>
               </div>
               <button
                 onClick={() => setShowDetails(!showDetails)}
@@ -905,8 +907,122 @@ const RecentTransactions = ({
   );
 };
 
+type WalletType = "privy" | "halo" | null;
+
+type WalletSelectorProps = {
+  onSelectWallet: (type: WalletType) => void;
+  selectedWallet: WalletType;
+};
+
+const WalletSelector = ({ onSelectWallet, selectedWallet }: WalletSelectorProps) => {
+  const { login: privyLogin } = usePrivy();
+  const navigate = useNavigate();
+
+  const handlePrivyConnect = () => {
+    onSelectWallet("privy");
+    privyLogin();
+  };
+
+  const handleHaloConnect = () => {
+    onSelectWallet("halo");
+    navigate("/welcome"); // Navigate to HaLo connection flow
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8"
+    >
+      <div className="text-center mb-8">
+        <CreditCard className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-4">Choose Your Wallet</h2>
+        <p className="text-gray-400">
+          Connect with a traditional software wallet or use your HaLo NFC hardware wallet for enhanced security
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Privy Wallet Option */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handlePrivyConnect}
+          className={`p-6 rounded-xl border-2 transition-all duration-300 text-left ${
+            selectedWallet === "privy"
+              ? "border-purple-500 bg-purple-500/20"
+              : "border-gray-700 hover:border-purple-500/50 bg-gray-800/50"
+          }`}
+        >
+          <div className="flex items-center mb-4">
+            <Wallet className="w-8 h-8 text-purple-400 mr-3" />
+            <div>
+              <h3 className="text-lg font-semibold text-white">Software Wallet</h3>
+              <p className="text-sm text-gray-400">MetaMask, WalletConnect, etc.</p>
+            </div>
+          </div>
+          <ul className="text-sm text-gray-300 space-y-2">
+            <li className="flex items-center">
+              <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+              Quick setup
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+              Multiple wallet support
+            </li>
+            <li className="flex items-center">
+              <CheckCircle className="w-4 h-4 text-green-400 mr-2" />
+              Cross-platform
+            </li>
+          </ul>
+        </motion.button>
+
+        {/* HaLo Wallet Option */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleHaloConnect}
+          className={`p-6 rounded-xl border-2 transition-all duration-300 text-left ${
+            selectedWallet === "halo"
+              ? "border-cyan-500 bg-cyan-500/20"
+              : "border-gray-700 hover:border-cyan-500/50 bg-gray-800/50"
+          }`}
+        >
+          <div className="flex items-center mb-4">
+            <Smartphone className="w-8 h-8 text-cyan-400 mr-3" />
+            <div>
+              <h3 className="text-lg font-semibold text-white">HaLo NFC Wallet</h3>
+              <p className="text-sm text-gray-400">Hardware security card</p>
+            </div>
+          </div>
+          <ul className="text-sm text-gray-300 space-y-2">
+            <li className="flex items-center">
+              <Shield className="w-4 h-4 text-cyan-400 mr-2" />
+              Hardware security
+            </li>
+            <li className="flex items-center">
+              <Shield className="w-4 h-4 text-cyan-400 mr-2" />
+              NFC signing
+            </li>
+            <li className="flex items-center">
+              <Shield className="w-4 h-4 text-cyan-400 mr-2" />
+              Air-gapped security
+            </li>
+          </ul>
+        </motion.button>
+      </div>
+
+      <div className="mt-6 text-center">
+        <p className="text-xs text-gray-500">Both options provide secure access to your virtual credit card</p>
+      </div>
+    </motion.div>
+  );
+};
+
 export default function PaymentsPage() {
-  const { authenticated, user, login } = usePrivy();
+  const { authenticated, user } = usePrivy();
+  const { isConnected: haloConnected, address: haloAddress, clearWalletStorage } = useHaloWallet();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState("payment");
@@ -921,16 +1037,30 @@ export default function PaymentsPage() {
   const [recipientAddress, setRecipientAddress] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedWallet, setSelectedWallet] = useState<WalletType>(null);
+
+  // Determine which wallet is connected and active
+  const isWalletConnected = authenticated || haloConnected;
+  const currentWalletAddress = authenticated ? user?.wallet?.address : haloAddress;
+  const currentWalletType: WalletType = authenticated ? "privy" : haloConnected ? "halo" : null;
+
+  useEffect(() => {
+    if (authenticated) {
+      setSelectedWallet("privy");
+    } else if (haloConnected) {
+      setSelectedWallet("halo");
+    }
+  }, [authenticated, haloConnected]);
 
   const fetchUserData = async () => {
-    if (!user?.wallet?.address) return;
+    if (!currentWalletAddress) return;
 
     try {
       const data = await publicClient.readContract({
         address: CREDIT_MANAGER_ADDRESS as `0x${string}`,
         abi: CREDIT_MANAGER_ABI,
         functionName: "getCreditInfo",
-        args: [user.wallet.address as `0x${string}`],
+        args: [currentWalletAddress as `0x${string}`],
       });
 
       if (data && Array.isArray(data)) {
@@ -959,11 +1089,11 @@ export default function PaymentsPage() {
   };
 
   const fetchTransactionHistory = async () => {
-    if (!user?.wallet?.address) return;
+    if (!currentWalletAddress) return;
 
     try {
       setLoadingTransactions(true);
-      const userAddress = user.wallet.address as `0x${string}`;
+      const userAddress = currentWalletAddress as `0x${string}`;
       const contractAddress = CREDIT_MANAGER_ADDRESS as `0x${string}`;
 
       const currentBlock = await publicClient.getBlockNumber();
@@ -1198,11 +1328,11 @@ export default function PaymentsPage() {
   };
 
   useEffect(() => {
-    if (authenticated && user?.wallet?.address) {
+    if (isWalletConnected && currentWalletAddress) {
       fetchUserData();
       fetchTransactionHistory();
     }
-  }, [authenticated, user?.wallet?.address]);
+  }, [isWalletConnected, currentWalletAddress]);
 
   const recentTransactions = transactions;
 
@@ -1220,7 +1350,7 @@ export default function PaymentsPage() {
     const { recipientAddress, paymentAmount } = data;
     const amount = parseFloat(paymentAmount);
 
-    if (!user?.wallet?.address || amount <= 0) {
+    if (!currentWalletAddress || amount <= 0) {
       setTransactionStatus({ status: "error", message: "Invalid payment details" });
       return;
     }
@@ -1229,46 +1359,96 @@ export default function PaymentsPage() {
       setIsProcessing(true);
       setTransactionStatus({ status: "pending", message: "Preparing credit payment..." });
 
-      const walletClient = getWalletClient(user.wallet.address);
-      if (!walletClient) {
-        throw new Error("Could not connect to wallet");
-      }
-
       const amountInWei = BigInt(Math.floor(amount * 1e6));
 
-      setTransactionStatus({ status: "pending", message: "Using credit line..." });
+      if (currentWalletType === "halo") {
+        // Handle HaLo wallet payment
+        const haloWallet = new HaloWallet(currentWalletAddress, publicClient);
 
-      const borrowTx = await walletClient.writeContract({
-        address: CREDIT_MANAGER_ADDRESS as `0x${string}`,
-        abi: CREDIT_MANAGER_ABI,
-        functionName: "borrow",
-        args: [amountInWei],
-        account: user.wallet.address as `0x${string}`,
-        chain: flowTestnet,
-      });
+        setTransactionStatus({ status: "pending", message: "Please tap your HaLo card to sign..." });
 
-      setTransactionStatus({ status: "pending", message: "Confirming credit usage..." });
+        toast.loading("Tap your HaLo card to sign the credit transaction", {
+          duration: 0,
+          id: "halo-signing",
+        });
 
-      await publicClient.waitForTransactionReceipt({ hash: borrowTx });
+        // Borrow from credit line
+        const borrowTx = {
+          to: CREDIT_MANAGER_ADDRESS as `0x${string}`,
+          data: encodeFunctionData({
+            abi: CREDIT_MANAGER_ABI,
+            functionName: "borrow",
+            args: [amountInWei],
+          }),
+          value: 0n,
+        };
 
-      setTransactionStatus({ status: "pending", message: "Sending payment to recipient..." });
+        const borrowTxHash = await haloWallet.sendTransaction(borrowTx);
 
-      const transferTx = await walletClient.writeContract({
-        address: USDC_ADDRESS as `0x${string}`,
-        abi: USDC_ABI,
-        functionName: "transfer",
-        args: [recipientAddress as `0x${string}`, amountInWei],
-        account: user.wallet.address as `0x${string}`,
-        chain: flowTestnet,
-      });
+        setTransactionStatus({ status: "pending", message: "Confirming credit usage..." });
 
-      setTransactionStatus({ status: "pending", message: "Finalizing payment..." });
+        await publicClient.waitForTransactionReceipt({ hash: borrowTxHash });
 
-      await publicClient.waitForTransactionReceipt({ hash: transferTx });
+        setTransactionStatus({ status: "pending", message: "Tap HaLo card again to send payment..." });
+
+        // Transfer to recipient
+        const transferTx = {
+          to: USDC_ADDRESS as `0x${string}`,
+          data: encodeFunctionData({
+            abi: USDC_ABI,
+            functionName: "transfer",
+            args: [recipientAddress as `0x${string}`, amountInWei],
+          }),
+          value: 0n,
+        };
+
+        const transferTxHash = await haloWallet.sendTransaction(transferTx);
+
+        await publicClient.waitForTransactionReceipt({ hash: transferTxHash });
+
+        toast.dismiss("halo-signing");
+        toast.success("Payment signed and sent with HaLo!");
+      } else {
+        // Handle Privy wallet payment
+        const walletClient = getWalletClient(currentWalletAddress);
+        if (!walletClient) {
+          throw new Error("Could not connect to wallet");
+        }
+
+        setTransactionStatus({ status: "pending", message: "Using credit line..." });
+
+        const borrowTx = await walletClient.writeContract({
+          address: CREDIT_MANAGER_ADDRESS as `0x${string}`,
+          abi: CREDIT_MANAGER_ABI,
+          functionName: "borrow",
+          args: [amountInWei],
+          account: currentWalletAddress as `0x${string}`,
+          chain: flowTestnet,
+        });
+
+        setTransactionStatus({ status: "pending", message: "Confirming credit usage..." });
+
+        await publicClient.waitForTransactionReceipt({ hash: borrowTx });
+
+        setTransactionStatus({ status: "pending", message: "Sending payment to recipient..." });
+
+        const transferTx = await walletClient.writeContract({
+          address: USDC_ADDRESS as `0x${string}`,
+          abi: USDC_ABI,
+          functionName: "transfer",
+          args: [recipientAddress as `0x${string}`, amountInWei],
+          account: currentWalletAddress as `0x${string}`,
+          chain: flowTestnet,
+        });
+
+        setTransactionStatus({ status: "pending", message: "Finalizing payment..." });
+
+        await publicClient.waitForTransactionReceipt({ hash: transferTx });
+      }
 
       setTransactionStatus({
         status: "success",
-        message: `Credit payment of ${amount.toLocaleString()} USDC sent successfully!`,
+        message: `Credit payment of ${amount.toLocaleString()} USDC sent successfully with ${currentWalletType === "halo" ? "HaLo" : "Privy"}!`,
       });
 
       await Promise.all([fetchUserData(), fetchTransactionHistory()]);
@@ -1279,6 +1459,8 @@ export default function PaymentsPage() {
       setTimeout(() => setTransactionStatus(null), 5000);
     } catch (error: any) {
       console.error("Payment error:", error);
+      toast.dismiss("halo-signing");
+
       let errorMessage = "Credit payment failed. Please try again.";
 
       if (error.message?.includes("insufficient")) {
@@ -1287,6 +1469,8 @@ export default function PaymentsPage() {
         errorMessage = "Transaction was rejected by user.";
       } else if (error.message?.includes("credit line")) {
         errorMessage = "Credit line not active. Please activate your credit card first.";
+      } else if (currentWalletType === "halo" && error.message?.includes("HaLo")) {
+        errorMessage = "HaLo card signing failed. Please try tapping your card again.";
       }
 
       setTransactionStatus({ status: "error", message: errorMessage });
@@ -1297,28 +1481,23 @@ export default function PaymentsPage() {
     }
   };
 
-  if (!authenticated) {
+  const handleDisconnectWallet = () => {
+    if (currentWalletType === "halo") {
+      clearWalletStorage();
+      toast.success("HaLo wallet disconnected");
+    }
+    setSelectedWallet(null);
+    navigate("/welcome");
+  };
+
+  // Show wallet selector if no wallet is connected
+  if (!isWalletConnected) {
     return (
       <div className="min-h-screen bg-black text-white">
         <FloatingOrbs />
 
         <div className="relative z-10 max-w-2xl mx-auto px-4 py-24">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 text-center"
-          >
-            <CreditCard className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-4">Connect Wallet to Access Your Credit Card</h2>
-            <p className="text-gray-400 mb-6">
-              Connect your wallet to activate your virtual credit card and start making payments
-            </p>
-            <GlowingButton onClick={login}>
-              Connect Wallet & Activate Card
-              <ArrowRight className="w-5 h-5" />
-            </GlowingButton>
-          </motion.div>
+          <WalletSelector onSelectWallet={setSelectedWallet} selectedWallet={selectedWallet} />
         </div>
       </div>
     );
@@ -1330,20 +1509,51 @@ export default function PaymentsPage() {
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white via-purple-200 to-cyan-200 bg-clip-text text-transparent">
-            Virtual Credit Card
-          </h1>
-          <p className="text-gray-400 mt-2 text-lg">Pay instantly with your crypto credit line</p>
-          <ConnectWalletButton />
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white via-purple-200 to-cyan-200 bg-clip-text text-transparent">
+                Virtual Credit Card
+              </h1>
+              <p className="text-gray-400 mt-2 text-lg">
+                Pay instantly with your crypto credit line • Connected via{" "}
+                {currentWalletType === "halo" ? "HaLo NFC" : "Privy"}
+              </p>
+            </div>
+
+            {/* Wallet Info and Disconnect */}
+            <div className="flex items-center gap-4">
+              {/* <div className="text-right">
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  {currentWalletType === "halo" ? (
+                    <Smartphone className="w-4 h-4 text-cyan-400" />
+                  ) : (
+                    <Wallet className="w-4 h-4 text-purple-400" />
+                  )}
+                  <span className="font-mono">
+                    {currentWalletAddress?.slice(0, 6)}...{currentWalletAddress?.slice(-4)}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {currentWalletType === "halo" ? "HaLo NFC Wallet" : "Software Wallet"}
+                </div>
+              </div> */}
+
+              {/* <button
+                onClick={handleDisconnectWallet}
+                className="text-red-400 hover:text-red-300 text-sm px-3 py-1 border border-red-400/30 rounded-lg hover:border-red-400/50 transition-colors"
+              >
+                Disconnect
+              </button> */}
+            </div>
+          </div>
         </div>
 
         <VirtualCreditCard
           creditLimit={creditData.creditLimit}
           availableCredit={creditData.availableCredit}
           outstandingDebt={creditData.outstandingDebt}
-          userAddress={user?.wallet?.address || ""}
+          userAddress={currentWalletAddress || ""}
           isProcessing={isProcessing}
-          paymentAmount={paymentAmount}
         />
 
         <TabToggle activeTab={activeTab} onTabChange={setActiveTab} />
@@ -1379,12 +1589,17 @@ export default function PaymentsPage() {
                   transition={{ duration: 0.3 }}
                   className="flex-1"
                 >
-                  <ReceiveSection walletAddress={user?.wallet?.address || ""} />
+                  <ReceiveSection walletAddress={currentWalletAddress || ""} />
                 </motion.div>
               )}
-              <GlowingButton className="mt-4 w-full flex justify-center" onClick={() => navigate("/borrow/dashboard")}>
+
+              {/* Wallet-specific navigation */}
+              <GlowingButton
+                className="mt-4 w-full flex justify-center"
+                onClick={() => navigate(currentWalletType === "halo" ? "/borrow/halo" : "/borrow/dashboard")}
+              >
                 <Wallet className="w-5 h-5" />
-                Go to Credit Dashboard
+                Go to {currentWalletType === "halo" ? "HaLo" : "Credit"} Dashboard
                 <ArrowRight className="w-5 h-5" />
               </GlowingButton>
             </AnimatePresence>
