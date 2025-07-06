@@ -8,6 +8,7 @@ import { FloatingOrbs } from "../components/FloatingOrbs";
 import { GlowingButton } from "../components/GlowingButton";
 import { useHaloWallet } from "../hooks/useHaloWallet";
 import type { HaloCommand, HaloOptions, HaloResponse } from "../interface/global";
+import { cleanAddress } from "../utils/addressUtils";
 
 const FeatureCard = ({
   icon: Icon,
@@ -117,7 +118,7 @@ export default function WelcomeScreen() {
       res = (await execHaloCmdWeb(command, options)) as HaloResponse;
 
       const walletData = {
-        address: res.etherAddress,
+        address: cleanAddress(res.etherAddress),
         publicKey: res.publicKey,
         isConnected: true,
       };

@@ -1,4 +1,4 @@
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import BorrowerDashboard from "./pages/borrow/Dashboard";
 import PaymentsPage from "./pages/borrow/PaymentsPage";
 import StakeCollateral from "./pages/borrow/StakeCollateral";
@@ -10,7 +10,7 @@ import WelcomeScreen from "./pages/Welcome";
 
 function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route element={<LendLayout />}>
@@ -23,7 +23,7 @@ function App() {
         <Route path="/borrow/stake" element={<StakeCollateral />} />
         <Route path="/welcome" element={<WelcomeScreen />} />
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { HaloWallet } from "../lib/HaloWallet";
 import { publicClient } from "../lib/viemClient";
+import { cleanAddress } from "../utils/addressUtils";
 
 interface HaloWalletData {
   address: string;
@@ -30,7 +31,28 @@ export const useHaloWallet = () => {
       if (isConnected && storedData) {
         const parsedData = JSON.parse(storedData) as HaloWalletData;
         if (parsedData.address && parsedData.isConnected) {
-          setWalletData(parsedData);
+          // Clean up any potential double 0x prefix from stored data
+          const cleanedAddress = cleanAddress(parsedData.address);
+
+          // Validate the cleaned address format
+          if (!cleanedAddress.startsWith("0x") || cleanedAddress.length !== 42) {
+            console.warn("Invalid address format found in storage, clearing wallet data");
+            clearWalletStorage();
+            return;
+          }
+
+          const cleanedData = {
+            ...parsedData,
+            address: cleanedAddress,
+          };
+
+          // If we cleaned the address, update localStorage
+          if (cleanedAddress !== parsedData.address) {
+            localStorage.setItem(HALO_WALLET_KEY, JSON.stringify(cleanedData));
+            localStorage.setItem(HALO_ADDRESS_KEY, cleanedAddress);
+          }
+
+          setWalletData(cleanedData);
         }
       }
     } catch (error) {
@@ -43,10 +65,18 @@ export const useHaloWallet = () => {
 
   const saveWalletToStorage = (data: HaloWalletData) => {
     try {
-      localStorage.setItem(HALO_WALLET_KEY, JSON.stringify(data));
-      localStorage.setItem(HALO_ADDRESS_KEY, data.address);
+      // Clean the address before saving
+      const cleanedAddress = cleanAddress(data.address);
+
+      const cleanedData = {
+        ...data,
+        address: cleanedAddress,
+      };
+
+      localStorage.setItem(HALO_WALLET_KEY, JSON.stringify(cleanedData));
+      localStorage.setItem(HALO_ADDRESS_KEY, cleanedAddress);
       localStorage.setItem(HALO_CONNECTED_KEY, "true");
-      setWalletData(data);
+      setWalletData(cleanedData);
     } catch (error) {
       console.error("Failed to save wallet data to localStorage:", error);
       throw new Error("Failed to save wallet data");

@@ -18,7 +18,6 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { encodeFunctionData, parseUnits } from "viem";
 import { flowTestnet } from "viem/chains";
-import ConnectWalletButton from "../../components/ConnectWalletButton";
 import { FloatingOrbs } from "../../components/FloatingOrbs";
 import { GlowingButton } from "../../components/GlowingButton";
 import { CREDIT_MANAGER_ABI } from "../../contracts/abis/CreditManager";
@@ -157,6 +156,7 @@ export default function StakeCollateral() {
   );
   const [userBalance, setUserBalance] = useState<string>("0");
   const [userAllowance, setUserAllowance] = useState<string>("0");
+  const [userCollateralVaultAllowance, setUserCollateralVaultAllowance] = useState<string>("0");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [existingCreditInfo, setExistingCreditInfo] = useState<any>(null);
   const [hasExistingCredit, setHasExistingCredit] = useState<boolean>(false);
@@ -166,32 +166,21 @@ export default function StakeCollateral() {
     newLimit: 0,
   });
 
-  const [selectedWallet, setSelectedWallet] = useState<WalletType>(() => {
-    if (authenticated && user?.wallet?.address) {
-      localStorage.setItem("preferredWallet", "privy");
-      return "privy";
-    }
-    if (haloConnected && haloAddress) {
-      localStorage.setItem("preferredWallet", "halo");
-      return "halo";
-    }
+  // Simplified wallet state - similar to PaymentsPage
+  const [selectedWallet, setSelectedWallet] = useState<WalletType>(null);
+  const [walletDetectionComplete, setWalletDetectionComplete] = useState<boolean>(false);
 
-    const stored = localStorage.getItem("preferredWallet") as WalletType;
-    return stored || null;
-  });
-
-  const [walletDetectionComplete, setWalletDetectionComplete] = useState<boolean>(() => {
-    return Boolean((authenticated && user?.wallet?.address) || (haloConnected && haloAddress));
-  });
-
-  const isWalletConnected = selectedWallet === "privy" ? authenticated : haloConnected;
-  const walletAddress = selectedWallet === "privy" ? user?.wallet?.address : haloAddress;
+  // Determine which wallet is connected and active - matches PaymentsPage logic
+  const isWalletConnected = authenticated || haloConnected;
+  const walletAddress = authenticated ? user?.wallet?.address : haloAddress;
+  const currentWalletType: WalletType = authenticated ? "privy" : haloConnected ? "halo" : null;
+  const currentWalletAddress = authenticated ? user?.wallet?.address : haloAddress;
 
   const usdcBalance = parseFloat(userBalance) / 1e6;
   const baseCreditRatio = 1.0;
 
   const walletClient =
-    selectedWallet === "privy" && authenticated && user?.wallet && (window as any).ethereum
+    currentWalletType === "privy" && authenticated && user?.wallet && (window as any).ethereum
       ? getWalletClient(user.wallet.address as string)
       : null;
 
@@ -208,7 +197,7 @@ export default function StakeCollateral() {
     if (!walletAddress) return;
 
     try {
-      const [balance, allowance] = await Promise.all([
+      const [balance, allowance, collateralVaultAllowance] = await Promise.all([
         publicClient.readContract({
           address: USDC_TOKEN_ADDRESS as `0x${string}`,
           abi: USDC_ABI,
@@ -221,10 +210,17 @@ export default function StakeCollateral() {
           functionName: "allowance",
           args: [walletAddress as `0x${string}`, CREDIT_MANAGER_ADDRESS as `0x${string}`],
         }),
+        publicClient.readContract({
+          address: USDC_TOKEN_ADDRESS as `0x${string}`,
+          abi: USDC_ABI,
+          functionName: "allowance",
+          args: [walletAddress as `0x${string}`, COLLATERAL_VAULT_ADDRESS as `0x${string}`],
+        }),
       ]);
 
       setUserBalance((balance as bigint).toString());
       setUserAllowance((allowance as bigint).toString());
+      setUserCollateralVaultAllowance((collateralVaultAllowance as bigint).toString());
 
       if (CREDIT_MANAGER_ADDRESS) {
         try {
@@ -312,58 +308,46 @@ export default function StakeCollateral() {
   };
 
   useEffect(() => {
-    if (walletAddress) {
+    if (walletAddress && isWalletConnected) {
       fetchUserData();
     }
-  }, [walletAddress, selectedWallet]);
+  }, [walletAddress, isWalletConnected]);
 
+  // Simple wallet detection - similar to PaymentsPage
   useEffect(() => {
-    const detectWalletWithDelay = () => {
-      setTimeout(() => {
-        setWalletDetectionComplete(true);
-
-        if (!selectedWallet) {
-          if (authenticated && user?.wallet?.address) {
-            setSelectedWallet("privy");
-            localStorage.setItem("preferredWallet", "privy");
-          } else if (haloConnected && haloAddress) {
-            setSelectedWallet("halo");
-            localStorage.setItem("preferredWallet", "halo");
-          }
-        } else if (selectedWallet === "privy" && !authenticated && haloConnected && haloAddress) {
-          setSelectedWallet("halo");
-          localStorage.setItem("preferredWallet", "halo");
-        } else if (selectedWallet === "halo" && !haloConnected && authenticated && user?.wallet?.address) {
-          setSelectedWallet("privy");
-          localStorage.setItem("preferredWallet", "privy");
-        }
-      }, 100);
-    };
-
-    detectWalletWithDelay();
-  }, [authenticated, user?.wallet?.address, haloConnected, haloAddress, selectedWallet]);
-
-  useEffect(() => {
-    const hasActiveConnection = (authenticated && user?.wallet?.address) || (haloConnected && haloAddress);
-    if (hasActiveConnection) {
+    if (authenticated) {
+      setSelectedWallet("privy");
       setWalletDetectionComplete(true);
-    }
-  }, [authenticated, user?.wallet?.address, haloConnected, haloAddress]);
-
-  useEffect(() => {
-    const fallbackTimer = setTimeout(() => {
-      if (!walletDetectionComplete) {
+    } else if (haloConnected) {
+      setSelectedWallet("halo");
+      setWalletDetectionComplete(true);
+    } else {
+      // If no active connection, complete detection after a short delay
+      const timer = setTimeout(() => {
         setWalletDetectionComplete(true);
-      }
-    }, 2000);
-
-    return () => clearTimeout(fallbackTimer);
-  }, [walletDetectionComplete]);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [authenticated, haloConnected]);
 
   const needsApproval = () => {
     if (!stakeAmount || parseFloat(stakeAmount) <= 0) return false;
     const amountWei = parseUnits(stakeAmount, 6);
+    const needsCreditManagerApproval = BigInt(userAllowance) < amountWei;
+    const needsCollateralVaultApproval = BigInt(userCollateralVaultAllowance) < amountWei;
+    return needsCreditManagerApproval || needsCollateralVaultApproval;
+  };
+
+  const needsCreditManagerApproval = () => {
+    if (!stakeAmount || parseFloat(stakeAmount) <= 0) return false;
+    const amountWei = parseUnits(stakeAmount, 6);
     return BigInt(userAllowance) < amountWei;
+  };
+
+  const needsCollateralVaultApproval = () => {
+    if (!stakeAmount || parseFloat(stakeAmount) <= 0) return false;
+    const amountWei = parseUnits(stakeAmount, 6);
+    return BigInt(userCollateralVaultAllowance) < amountWei;
   };
 
   const handleOpenCreditLine = async () => {
@@ -375,29 +359,35 @@ export default function StakeCollateral() {
 
       const amountWei = parseUnits(stakeAmount, 6);
 
-      if (selectedWallet === "privy") {
+      if (currentWalletType === "privy") {
         if (!walletClient) return;
 
         if (needsApproval()) {
           setTransactionStatus("approving");
-          const approveCreditManagerHash = await walletClient.writeContract({
-            address: USDC_TOKEN_ADDRESS as `0x${string}`,
-            abi: USDC_ABI,
-            functionName: "approve",
-            args: [CREDIT_MANAGER_ADDRESS as `0x${string}`, amountWei],
-            account: walletAddress as `0x${string}`,
-            chain: flowTestnet,
-          });
-          await publicClient.waitForTransactionReceipt({ hash: approveCreditManagerHash });
-          const approveCollateralVaultHash = await walletClient.writeContract({
-            address: USDC_TOKEN_ADDRESS as `0x${string}`,
-            abi: USDC_ABI,
-            functionName: "approve",
-            args: [COLLATERAL_VAULT_ADDRESS as `0x${string}`, amountWei],
-            account: walletAddress as `0x${string}`,
-            chain: flowTestnet,
-          });
-          await publicClient.waitForTransactionReceipt({ hash: approveCollateralVaultHash });
+
+          if (needsCreditManagerApproval()) {
+            const approveCreditManagerHash = await walletClient.writeContract({
+              address: USDC_TOKEN_ADDRESS as `0x${string}`,
+              abi: USDC_ABI,
+              functionName: "approve",
+              args: [CREDIT_MANAGER_ADDRESS as `0x${string}`, amountWei],
+              account: walletAddress as `0x${string}`,
+              chain: flowTestnet,
+            });
+            await publicClient.waitForTransactionReceipt({ hash: approveCreditManagerHash });
+          }
+
+          if (needsCollateralVaultApproval()) {
+            const approveCollateralVaultHash = await walletClient.writeContract({
+              address: USDC_TOKEN_ADDRESS as `0x${string}`,
+              abi: USDC_ABI,
+              functionName: "approve",
+              args: [COLLATERAL_VAULT_ADDRESS as `0x${string}`, amountWei],
+              account: walletAddress as `0x${string}`,
+              chain: flowTestnet,
+            });
+            await publicClient.waitForTransactionReceipt({ hash: approveCollateralVaultHash });
+          }
         }
 
         setTransactionStatus("staking");
@@ -411,42 +401,47 @@ export default function StakeCollateral() {
         });
 
         await publicClient.waitForTransactionReceipt({ hash: stakeHash });
-      } else if (selectedWallet === "halo") {
+      } else if (currentWalletType === "halo") {
         if (needsApproval()) {
           setTransactionStatus("approving");
-          toast("Please tap your HaLo NFC card to approve USDC spending...", { icon: "📱" });
 
           const haloWallet = new HaloWallet(walletAddress, publicClient);
 
-          const approveCreditManagerHash = await haloWallet.sendTransaction({
-            to: USDC_TOKEN_ADDRESS,
-            data: encodeFunctionData({
-              abi: USDC_ABI,
-              functionName: "approve",
-              args: [CREDIT_MANAGER_ADDRESS as `0x${string}`, amountWei],
-            }),
-            value: BigInt(0),
-            gas: BigInt(100000),
-            chainId: flowTestnet.id,
-          });
+          if (needsCreditManagerApproval()) {
+            toast("Please tap your HaLo NFC card to approve USDC spending for Credit Manager...", { icon: "📱" });
 
-          await publicClient.waitForTransactionReceipt({ hash: approveCreditManagerHash });
+            const approveCreditManagerHash = await haloWallet.sendTransaction({
+              to: USDC_TOKEN_ADDRESS,
+              data: encodeFunctionData({
+                abi: USDC_ABI,
+                functionName: "approve",
+                args: [CREDIT_MANAGER_ADDRESS as `0x${string}`, amountWei],
+              }),
+              value: 0n,
+              chainId: flowTestnet.id,
+            });
 
-          toast("Please tap your HaLo NFC card again to approve collateral vault spending...", { icon: "📱" });
+            await publicClient.waitForTransactionReceipt({ hash: approveCreditManagerHash });
+          }
 
-          const approveCollateralVaultHash = await haloWallet.sendTransaction({
-            to: COLLATERAL_VAULT_ADDRESS,
-            data: encodeFunctionData({
-              abi: USDC_ABI,
-              functionName: "approve",
-              args: [COLLATERAL_VAULT_ADDRESS as `0x${string}`, amountWei],
-            }),
-            value: BigInt(0),
-            gas: BigInt(100000),
-            chainId: flowTestnet.id,
-          });
+          if (needsCollateralVaultApproval()) {
+            toast("Please tap your HaLo NFC card again to approve USDC spending for Collateral Vault...", {
+              icon: "📱",
+            });
 
-          await publicClient.waitForTransactionReceipt({ hash: approveCollateralVaultHash });
+            const approveCollateralVaultHash = await haloWallet.sendTransaction({
+              to: USDC_TOKEN_ADDRESS,
+              data: encodeFunctionData({
+                abi: USDC_ABI,
+                functionName: "approve",
+                args: [COLLATERAL_VAULT_ADDRESS as `0x${string}`, amountWei],
+              }),
+              value: 0n,
+              chainId: flowTestnet.id,
+            });
+
+            await publicClient.waitForTransactionReceipt({ hash: approveCollateralVaultHash });
+          }
         }
 
         setTransactionStatus("staking");
@@ -461,8 +456,7 @@ export default function StakeCollateral() {
             functionName: "openCreditLine",
             args: [amountWei],
           }),
-          value: BigInt(0),
-          gas: BigInt(200000),
+          value: 0n,
           chainId: flowTestnet.id,
         });
 
@@ -490,29 +484,35 @@ export default function StakeCollateral() {
 
       const amountWei = parseUnits(stakeAmount, 6);
 
-      if (selectedWallet === "privy") {
+      if (currentWalletType === "privy") {
         if (!walletClient) return;
 
         if (needsApproval()) {
           setTransactionStatus("approving");
-          const approveCreditManagerHash = await walletClient.writeContract({
-            address: USDC_TOKEN_ADDRESS as `0x${string}`,
-            abi: USDC_ABI,
-            functionName: "approve",
-            args: [CREDIT_MANAGER_ADDRESS as `0x${string}`, amountWei],
-            account: walletAddress as `0x${string}`,
-            chain: flowTestnet,
-          });
-          await publicClient.waitForTransactionReceipt({ hash: approveCreditManagerHash });
-          const approveCollateralVaultHash = await walletClient.writeContract({
-            address: USDC_TOKEN_ADDRESS as `0x${string}`,
-            abi: USDC_ABI,
-            functionName: "approve",
-            args: [COLLATERAL_VAULT_ADDRESS as `0x${string}`, amountWei],
-            account: walletAddress as `0x${string}`,
-            chain: flowTestnet,
-          });
-          await publicClient.waitForTransactionReceipt({ hash: approveCollateralVaultHash });
+
+          if (needsCreditManagerApproval()) {
+            const approveCreditManagerHash = await walletClient.writeContract({
+              address: USDC_TOKEN_ADDRESS as `0x${string}`,
+              abi: USDC_ABI,
+              functionName: "approve",
+              args: [CREDIT_MANAGER_ADDRESS as `0x${string}`, amountWei],
+              account: walletAddress as `0x${string}`,
+              chain: flowTestnet,
+            });
+            await publicClient.waitForTransactionReceipt({ hash: approveCreditManagerHash });
+          }
+
+          if (needsCollateralVaultApproval()) {
+            const approveCollateralVaultHash = await walletClient.writeContract({
+              address: USDC_TOKEN_ADDRESS as `0x${string}`,
+              abi: USDC_ABI,
+              functionName: "approve",
+              args: [COLLATERAL_VAULT_ADDRESS as `0x${string}`, amountWei],
+              account: walletAddress as `0x${string}`,
+              chain: flowTestnet,
+            });
+            await publicClient.waitForTransactionReceipt({ hash: approveCollateralVaultHash });
+          }
         }
 
         setTransactionStatus("staking");
@@ -526,42 +526,47 @@ export default function StakeCollateral() {
         });
 
         await publicClient.waitForTransactionReceipt({ hash: stakeHash });
-      } else if (selectedWallet === "halo") {
+      } else if (currentWalletType === "halo") {
         if (needsApproval()) {
           setTransactionStatus("approving");
-          toast("Please tap your HaLo NFC card to approve USDC spending...", { icon: "📱" });
 
           const haloWallet = new HaloWallet(walletAddress, publicClient);
 
-          const approveCreditManagerHash = await haloWallet.sendTransaction({
-            to: USDC_TOKEN_ADDRESS,
-            data: encodeFunctionData({
-              abi: USDC_ABI,
-              functionName: "approve",
-              args: [CREDIT_MANAGER_ADDRESS as `0x${string}`, amountWei],
-            }),
-            value: BigInt(0),
-            gas: BigInt(100000),
-            chainId: flowTestnet.id,
-          });
+          if (needsCreditManagerApproval()) {
+            toast("Please tap your HaLo NFC card to approve USDC spending for Credit Manager...", { icon: "📱" });
 
-          await publicClient.waitForTransactionReceipt({ hash: approveCreditManagerHash });
+            const approveCreditManagerHash = await haloWallet.sendTransaction({
+              to: USDC_TOKEN_ADDRESS,
+              data: encodeFunctionData({
+                abi: USDC_ABI,
+                functionName: "approve",
+                args: [CREDIT_MANAGER_ADDRESS as `0x${string}`, amountWei],
+              }),
+              value: 0n,
+              chainId: flowTestnet.id,
+            });
 
-          toast("Please tap your HaLo NFC card again to approve collateral vault spending...", { icon: "📱" });
+            await publicClient.waitForTransactionReceipt({ hash: approveCreditManagerHash });
+          }
 
-          const approveCollateralVaultHash = await haloWallet.sendTransaction({
-            to: COLLATERAL_VAULT_ADDRESS,
-            data: encodeFunctionData({
-              abi: USDC_ABI,
-              functionName: "approve",
-              args: [COLLATERAL_VAULT_ADDRESS as `0x${string}`, amountWei],
-            }),
-            value: BigInt(0),
-            gas: BigInt(100000),
-            chainId: flowTestnet.id,
-          });
+          if (needsCollateralVaultApproval()) {
+            toast("Please tap your HaLo NFC card again to approve USDC spending for Collateral Vault...", {
+              icon: "📱",
+            });
 
-          await publicClient.waitForTransactionReceipt({ hash: approveCollateralVaultHash });
+            const approveCollateralVaultHash = await haloWallet.sendTransaction({
+              to: USDC_TOKEN_ADDRESS,
+              data: encodeFunctionData({
+                abi: USDC_ABI,
+                functionName: "approve",
+                args: [COLLATERAL_VAULT_ADDRESS as `0x${string}`, amountWei],
+              }),
+              value: 0n,
+              chainId: flowTestnet.id,
+            });
+
+            await publicClient.waitForTransactionReceipt({ hash: approveCollateralVaultHash });
+          }
         }
 
         setTransactionStatus("staking");
@@ -576,8 +581,7 @@ export default function StakeCollateral() {
             functionName: "addCollateral",
             args: [amountWei],
           }),
-          value: BigInt(0),
-          gas: BigInt(200000),
+          value: 0n,
           chainId: flowTestnet.id,
         });
 
@@ -598,10 +602,10 @@ export default function StakeCollateral() {
 
   const handleStake = () => {
     if (!isWalletConnected) {
-      if (!selectedWallet) {
+      if (!currentWalletType) {
         return;
       }
-      if (selectedWallet === "privy") {
+      if (currentWalletType === "privy") {
         login();
         return;
       }
@@ -614,12 +618,6 @@ export default function StakeCollateral() {
     }
   };
 
-  useEffect(() => {
-    if (walletAddress) {
-      fetchUserData();
-    }
-  }, [walletAddress, selectedWallet]);
-
   const calculateCreditLimit = () => {
     if (!stakeAmount || parseFloat(stakeAmount) <= 0) return 0;
 
@@ -630,12 +628,47 @@ export default function StakeCollateral() {
   const isLoading = transactionStatus === "approving" || transactionStatus === "staking";
   const canStake = isWalletConnected && isValidAmount && !isLoading;
 
+  if (!isWalletConnected) {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <FloatingOrbs />
+
+        <div className="relative z-10 max-w-2xl mx-auto px-4 py-24">
+          <WalletSelector onSelectWallet={setSelectedWallet} selectedWallet={selectedWallet} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-white">
       <FloatingOrbs />
 
-      <ConnectWalletButton />
+      {/* Wallet Info and Disconnect */}
+      <div className="flex items-center gap-4 w-full justify-end p-4">
+        <div className="text-right">
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            {currentWalletType === "halo" ? (
+              <Smartphone className="w-4 h-4 text-cyan-400" />
+            ) : (
+              <Wallet className="w-4 h-4 text-purple-400" />
+            )}
+            <span className="font-mono">
+              {currentWalletAddress?.slice(0, 6)}...{currentWalletAddress?.slice(-4)}
+            </span>
+          </div>
+          <div className="text-xs text-gray-500">
+            {currentWalletType === "halo" ? "HaLo NFC Wallet" : "Software Wallet"}
+          </div>
+        </div>
 
+        {/* <button
+          onClick={handleDisconnectWallet}
+          className="text-red-400 hover:text-red-300 text-sm px-3 py-1 border border-red-400/30 rounded-lg hover:border-red-400/50 transition-colors"
+        >
+          Disconnect
+        </button> */}
+      </div>
       <div className="relative z-10 max-w-lg mx-auto px-4 py-24">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -708,7 +741,11 @@ export default function StakeCollateral() {
             >
               <Loader className="w-12 h-12 text-purple-400 mx-auto mb-4 animate-spin" />
               <h2 className="text-xl font-bold text-white mb-2">Detecting Wallet Connection...</h2>
-              <p className="text-gray-400 mb-4">Please wait while we check your wallet status</p>
+              <p className="text-gray-400 mb-4">
+                {currentWalletType === "halo"
+                  ? "Checking HaLo NFC wallet connection..."
+                  : "Please wait while we check your wallet status"}
+              </p>
               <button
                 onClick={() => setWalletDetectionComplete(true)}
                 className="text-sm text-gray-500 hover:text-gray-400 transition-colors duration-300"
@@ -716,7 +753,7 @@ export default function StakeCollateral() {
                 Skip and choose wallet manually
               </button>
             </motion.div>
-          ) : selectedWallet ? (
+          ) : currentWalletType ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -725,18 +762,18 @@ export default function StakeCollateral() {
             >
               <Wallet className="w-16 h-16 text-purple-400 mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-white mb-4">
-                {selectedWallet === "privy" ? "Connect Privy Wallet" : "Connect HaLo NFC Wallet"}
+                {currentWalletType === "privy" ? "Connect Privy Wallet" : "Connect HaLo NFC Wallet"}
               </h2>
               <p className="text-gray-400 mb-6">
-                {selectedWallet === "privy"
+                {currentWalletType === "privy"
                   ? "Connect your Privy wallet to stake USDC and establish your credit line"
                   : "Connect your HaLo NFC card to stake USDC and establish your credit line"}
               </p>
               <GlowingButton
-                onClick={selectedWallet === "privy" ? login : () => (window.location.href = "/welcome")}
+                onClick={currentWalletType === "privy" ? login : () => (window.location.href = "/welcome")}
                 className="text-lg px-8 py-4"
               >
-                {selectedWallet === "privy" ? "Connect Privy Wallet" : "Connect HaLo NFC"}
+                {currentWalletType === "privy" ? "Connect Privy Wallet" : "Connect HaLo NFC"}
                 <ArrowRight className="w-5 h-5" />
               </GlowingButton>
               <button
