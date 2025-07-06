@@ -1022,7 +1022,7 @@ const WalletSelector = ({ onSelectWallet, selectedWallet }: WalletSelectorProps)
 
 export default function PaymentsPage() {
   const { authenticated, user } = usePrivy();
-  const { isConnected: haloConnected, address: haloAddress, clearWalletStorage } = useHaloWallet();
+  const { isConnected: haloConnected, address: haloAddress } = useHaloWallet();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState("payment");
@@ -1481,16 +1481,6 @@ export default function PaymentsPage() {
     }
   };
 
-  const handleDisconnectWallet = () => {
-    if (currentWalletType === "halo") {
-      clearWalletStorage();
-      toast.success("HaLo wallet disconnected");
-    }
-    setSelectedWallet(null);
-    navigate("/welcome");
-  };
-
-  // Show wallet selector if no wallet is connected
   if (!isWalletConnected) {
     return (
       <div className="min-h-screen bg-black text-white">

@@ -47,6 +47,7 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     if (isConnected) {
+      console.log(isLoading);
       navigate("/borrow");
     }
   }, [isConnected, navigate]);

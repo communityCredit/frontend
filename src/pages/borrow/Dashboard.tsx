@@ -67,6 +67,7 @@ const CreditSummaryCard = ({ creditLimit, usedCredit, availableCredit }: CreditS
         <div className="text-gray-400 text-sm">Available Credit</div>
       </div>
 
+      {/* Credit Usage Bar */}
       <div className="w-full bg-gray-700 rounded-full h-3 mb-4">
         <motion.div
           initial={{ width: 0 }}
@@ -232,6 +233,7 @@ const ReputationCard = ({ creditScore, potentialIncrease, onViewDetails }: Reput
         <div className="text-gray-400 text-sm">Your Credit Score</div>
       </div>
 
+      {/* Score Progress Bar */}
       <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
         <motion.div
           initial={{ width: 0 }}
@@ -346,6 +348,7 @@ export default function BorrowerDashboard() {
   const { authenticated, user, login } = usePrivy();
   const navigate = useNavigate();
 
+  // State for smart contract data
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [repayLoading, setRepayLoading] = useState(false);
@@ -372,6 +375,7 @@ export default function BorrowerDashboard() {
 
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
 
+  // Fetch data from smart contracts
   const fetchContractData = async () => {
     if (!authenticated || !user?.wallet?.address) return;
 
@@ -380,6 +384,7 @@ export default function BorrowerDashboard() {
       setError(null);
       const userAddress = user.wallet.address as `0x${string}`;
 
+      // Fetch credit info from CreditManager
       const creditInfo = await publicClient.readContract({
         address: CREDIT_MANAGER_ADDRESS as `0x${string}`,
         abi: CREDIT_MANAGER_ABI,
@@ -387,6 +392,7 @@ export default function BorrowerDashboard() {
         args: [userAddress],
       });
 
+      // Fetch collateral info from CollateralVault
       const collateralInfo = await publicClient.readContract({
         address: COLLATERAL_VAULT_ADDRESS as `0x${string}`,
         abi: COLLATERAL_VAULT_ABI,
@@ -394,6 +400,7 @@ export default function BorrowerDashboard() {
         args: [userAddress],
       });
 
+      // Fetch reputation data
       const repaymentHistory = await publicClient.readContract({
         address: CREDIT_MANAGER_ADDRESS as `0x${string}`,
         abi: CREDIT_MANAGER_ABI,
@@ -401,6 +408,7 @@ export default function BorrowerDashboard() {
         args: [userAddress],
       });
 
+      // Check credit increase eligibility
       const creditIncreaseEligibility = await publicClient.readContract({
         address: CREDIT_MANAGER_ADDRESS as `0x${string}`,
         abi: CREDIT_MANAGER_ABI,
@@ -455,9 +463,10 @@ export default function BorrowerDashboard() {
       if (repaymentHistory && Array.isArray(repaymentHistory)) {
         const [onTimeRepayments, lateRepayments, totalRepaid] = repaymentHistory;
 
+        // Calculate basic credit score based on repayment history
         const totalRepayments = Number(onTimeRepayments) + Number(lateRepayments);
         const onTimePercentage = totalRepayments > 0 ? Number(onTimeRepayments) / totalRepayments : 1;
-        const baseScore = Math.floor(300 + onTimePercentage * 550);
+        const baseScore = Math.floor(300 + onTimePercentage * 550); // Scale to 300-850 range
 
         setReputationData({
           creditScore: baseScore,
@@ -471,6 +480,7 @@ export default function BorrowerDashboard() {
         });
       }
 
+      // Mock recent activities - in a real app, you'd fetch from event logs
       setRecentActivities([
         { type: "borrow", amount: creditData.loanPrincipal, date: "Recent", status: "completed" },
         { type: "stake", amount: creditData.stakedCollateral, date: "Earlier", status: "completed" },
@@ -503,17 +513,20 @@ export default function BorrowerDashboard() {
       setRepayLoading(true);
       const userAddress = user.wallet.address as `0x${string}`;
 
+      // Get wallet client for transactions
       const walletClient = getWalletClient(userAddress);
       if (!walletClient) {
         throw new Error("Failed to get wallet client");
       }
 
+      // Convert amounts to wei (6 decimals for USDC)
       const principalAmountWei = parseUnits(creditData.loanPrincipal.toString(), 6);
       const interestAmountWei = parseUnits(creditData.loanInterest.toString(), 6);
       const totalAmountWei = principalAmountWei + interestAmountWei;
 
       toast.loading("Preparing repayment transaction...", { id: "repay-loading" });
 
+      // First, check if user has enough USDC balance
       const userBalance = await publicClient.readContract({
         address: USDC_TOKEN_ADDRESS as `0x${string}`,
         abi: USDC_ABI,
@@ -525,6 +538,7 @@ export default function BorrowerDashboard() {
         throw new Error(`Insufficient USDC balance. Required: ${creditData.totalDebt.toFixed(2)} USDC`);
       }
 
+      // Check allowances for USDC spending on both contracts
       const [creditManagerAllowance, lendingPoolAllowance] = await Promise.all([
         publicClient.readContract({
           address: USDC_TOKEN_ADDRESS as `0x${string}`,
@@ -540,6 +554,7 @@ export default function BorrowerDashboard() {
         }),
       ]);
 
+      // Approve USDC spending for Credit Manager if needed
       if (BigInt(creditManagerAllowance as string) < totalAmountWei) {
         toast.loading("Approving USDC spending for Credit Manager...", { id: "repay-loading" });
 
@@ -555,6 +570,7 @@ export default function BorrowerDashboard() {
         await publicClient.waitForTransactionReceipt({ hash: approveCreditManagerHash });
       }
 
+      // Approve USDC spending for Lending Pool if needed
       if (BigInt(lendingPoolAllowance as string) < totalAmountWei) {
         toast.loading("Approving USDC spending for Lending Pool...", { id: "repay-loading" });
 
@@ -570,6 +586,7 @@ export default function BorrowerDashboard() {
         await publicClient.waitForTransactionReceipt({ hash: approveLendingPoolHash });
       }
 
+      // Execute repayment transaction
       toast.loading("Processing repayment...", { id: "repay-loading" });
 
       const repayHash = await walletClient.writeContract({
@@ -581,6 +598,7 @@ export default function BorrowerDashboard() {
         chain: flowTestnet,
       });
 
+      // Wait for transaction confirmation
       await publicClient.waitForTransactionReceipt({ hash: repayHash });
 
       toast.dismiss("repay-loading");
@@ -589,6 +607,7 @@ export default function BorrowerDashboard() {
         duration: 5000,
       });
 
+      // Refresh dashboard data
       await fetchContractData();
     } catch (error: any) {
       console.error("Repayment error:", error);
@@ -613,13 +632,16 @@ export default function BorrowerDashboard() {
   };
 
   const handleViewReputation = () => {
+    // Navigate to reputation details page when implemented
     console.log("View reputation details");
   };
 
   const handleViewAllActivity = () => {
+    // Navigate to activity log page when implemented
     console.log("View all activity");
   };
 
+  // Show loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -642,6 +664,7 @@ export default function BorrowerDashboard() {
     );
   }
 
+  // Show error state
   if (error) {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -702,6 +725,7 @@ export default function BorrowerDashboard() {
       <ConnectWalletButton />
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -713,7 +737,9 @@ export default function BorrowerDashboard() {
           </h1>
         </motion.div>
 
+        {/* Show different content based on whether user has an active credit line */}
         {!creditData.isActive ? (
+          // No active credit line - show call to action
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -731,7 +757,9 @@ export default function BorrowerDashboard() {
             </GlowingButton>
           </motion.div>
         ) : (
+          // Active credit line - show dashboard
           <>
+            {/* Credit Summary - Full Width */}
             <div className="mb-8">
               <CreditSummaryCard
                 creditLimit={creditData.creditLimit}
@@ -740,6 +768,7 @@ export default function BorrowerDashboard() {
               />
             </div>
 
+            {/* Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               <CollateralCard stakedAmount={creditData.stakedCollateral} onStakeMore={handleStakeMore} />
 
@@ -759,6 +788,7 @@ export default function BorrowerDashboard() {
               />
             </div>
 
+            {/* Recent Activity - Full Width */}
             <RecentActivity activities={recentActivities} onViewAll={handleViewAllActivity} />
           </>
         )}

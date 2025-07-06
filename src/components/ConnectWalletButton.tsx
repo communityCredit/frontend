@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Wallet } from "lucide-react";
 
 export default function ConnectWalletButton() {
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { authenticated, user, login, logout } = usePrivy();
 
   return (
     <div className="fixed top-6 right-6 z-50">

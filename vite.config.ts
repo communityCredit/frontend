@@ -7,9 +7,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     host: true,
-    origin: "https://fd0f-83-144-23-156.ngrok-free.app",
+    origin: "https://09d8-83-144-23-156.ngrok-free.app",
     cors: {
-      origin: "https://fd0f-83-144-23-156.ngrok-free.app",
+      origin: "https://09d8-83-144-23-156.ngrok-free.app",
       credentials: true,
     },
   },

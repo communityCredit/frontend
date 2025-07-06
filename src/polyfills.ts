@@ -33,7 +33,7 @@ const processPolyfill = {
 if (typeof window !== "undefined") {
   window.Buffer = Buffer;
   window.global = window;
-  window.process = processPolyfill;
+  window.process = processPolyfill as unknown as NodeJS.Process;
 
   (globalThis as any).Buffer = Buffer;
   (globalThis as any).global = globalThis;
