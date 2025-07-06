@@ -1,3 +1,6 @@
+// Import polyfills first, before any other imports
+import "./polyfills";
+
 import { PrivyProvider } from "@privy-io/react-auth";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

@@ -1,11 +1,12 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import BorrowerDashboard from "./pages/borrow/Dashboard";
+import PaymentsPage from "./pages/borrow/PaymentsPage";
+import StakeCollateral from "./pages/borrow/StakeCollateral";
 import LandingPage from "./pages/LandingPage";
 import Lend from "./pages/Lend/Deposit";
 import LendLayout from "./pages/Lend/LendLayout";
 import Portfolio from "./pages/Lend/Portfolio";
-import BorrowerDashboard from "./pages/borrow/Dashboard";
-import PaymentsPage from "./pages/borrow/PaymentsPage";
-import StakeCollateral from "./pages/borrow/StakeCollateral";
+import WelcomeScreen from "./pages/Welcome";
 
 function App() {
   return (
@@ -17,8 +18,10 @@ function App() {
           <Route path="/lend/portfolio" element={<Portfolio />} />
         </Route>
         <Route path="/borrow" element={<PaymentsPage />} />
+
         <Route path="/borrow/dashboard" element={<BorrowerDashboard />} />
         <Route path="/borrow/stake" element={<StakeCollateral />} />
+        <Route path="/welcome" element={<WelcomeScreen />} />
       </Routes>
     </BrowserRouter>
   );
