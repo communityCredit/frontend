@@ -8,14 +8,20 @@ import {
   ArrowUp,
   CheckCircle,
   Copy,
+  CreditCard,
   DollarSign,
   Download,
+  Eye,
+  EyeOff,
   Info,
   Loader,
+  Lock,
   Scan,
   Send,
+  Shield,
   Wallet,
   X,
+  Zap,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import React, { useEffect, useState } from "react";
@@ -34,46 +40,331 @@ type CreditSummaryBannerProps = {
   outstandingDebt: number;
 };
 
-const CreditSummaryBanner = ({ creditLimit, availableCredit, outstandingDebt }: CreditSummaryBannerProps) => {
+const VirtualCreditCard = ({
+  creditLimit,
+  availableCredit,
+  outstandingDebt,
+  userAddress,
+  isProcessing = false,
+  paymentAmount = "",
+}: CreditSummaryBannerProps & {
+  userAddress: string;
+  isProcessing?: boolean;
+  paymentAmount?: string;
+}) => {
+  const [showDetails, setShowDetails] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [showPaymentEffect, setShowPaymentEffect] = useState(false);
   const usagePercentage = ((creditLimit - availableCredit) / creditLimit) * 100;
+
+  // Generate card number from wallet address
+  const cardNumber = userAddress
+    ? `4532 ${userAddress.slice(2, 6).toUpperCase()} ${userAddress.slice(6, 10).toUpperCase()} ${userAddress.slice(-4).toUpperCase()}`
+    : "4532 •••• •••• ••••";
+
+  // Payment animation effect
+  useEffect(() => {
+    if (isProcessing) {
+      setShowPaymentEffect(true);
+      setIsFlipped(true);
+
+      // Reset after animation
+      const timer = setTimeout(() => {
+        setShowPaymentEffect(false);
+        setIsFlipped(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isProcessing]);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-6 mb-8"
+      transition={{ duration: 0.8 }}
+      className="perspective-1000 mb-8"
     >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="text-center">
-          <div className="text-3xl font-bold text-transparent bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text">
-            ${creditLimit.toLocaleString()}
-          </div>
-          <div className="text-gray-400 text-sm">Credit Limit</div>
-        </div>
-
-        <div className="text-center">
-          <div className="text-3xl font-bold text-white">${availableCredit.toLocaleString()}</div>
-          <div className="text-gray-400 text-sm">Available Credit</div>
-        </div>
-
-        <div className="text-center">
-          <div className="text-3xl font-bold text-orange-400">${outstandingDebt.toFixed(2)}</div>
-          <div className="text-gray-400 text-sm">Outstanding Debt</div>
-        </div>
-      </div>
-
-      <div className="w-full bg-gray-700 rounded-full h-3">
+      <motion.div
+        className="relative w-full max-w-md mx-auto"
+        animate={{
+          rotateY: isFlipped ? 180 : 0,
+          scale: isProcessing ? 1.1 : 1,
+          rotateX: isProcessing ? 5 : 0,
+        }}
+        whileHover={{
+          rotateY: !isProcessing && showDetails ? 180 : !isProcessing ? 5 : 0,
+          scale: !isProcessing ? 1.05 : 1.1,
+        }}
+        transition={{ duration: 0.8, type: "spring", stiffness: 100 }}
+        style={{ transformStyle: "preserve-3d" }}
+      >
+        {/* Credit Card Front */}
         <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${usagePercentage}%` }}
-          transition={{ duration: 1, delay: 0.5 }}
-          className="bg-gradient-to-r from-purple-500 to-cyan-500 h-3 rounded-full"
-        />
-      </div>
-      <div className="flex justify-between mt-2 text-sm text-gray-400">
-        <span>Used: ${(creditLimit - availableCredit).toLocaleString()}</span>
-        <span>{usagePercentage.toFixed(1)}% utilized</span>
+          className={`relative w-full h-56 bg-gradient-to-br from-purple-600 via-purple-700 to-cyan-600 rounded-2xl shadow-2xl p-6 text-white ${
+            isFlipped ? "backface-hidden" : ""
+          }`}
+          animate={{
+            boxShadow: isProcessing
+              ? [
+                  "0 25px 50px -12px rgba(147, 51, 234, 0.5)",
+                  "0 25px 50px -12px rgba(6, 182, 212, 0.5)",
+                  "0 25px 50px -12px rgba(147, 51, 234, 0.5)",
+                ]
+              : "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          }}
+          transition={{
+            boxShadow: { duration: 1.5, repeat: isProcessing ? Infinity : 0 },
+          }}
+          style={{ backfaceVisibility: "hidden" }}
+        >
+          {/* Payment Wave Effect */}
+          <AnimatePresence>
+            {showPaymentEffect && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0.8 }}
+                animate={{ scale: 3, opacity: 0 }}
+                exit={{ scale: 3, opacity: 0 }}
+                transition={{ duration: 2, ease: "easeOut" }}
+                className="absolute inset-0 rounded-2xl border-4 border-green-400"
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Card Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-cyan-500/20 rounded-2xl overflow-hidden">
+            <div className="absolute top-4 right-4 w-16 h-16 border-2 border-white/20 rounded-full"></div>
+            <div className="absolute top-8 right-8 w-8 h-8 border-2 border-white/30 rounded-full"></div>
+
+            {/* Animated particles during payment */}
+            <AnimatePresence>
+              {isProcessing &&
+                [...Array(6)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{
+                      x: Math.random() * 100 + "%",
+                      y: Math.random() * 100 + "%",
+                      scale: 0,
+                      opacity: 0,
+                    }}
+                    animate={{
+                      scale: [0, 1, 0],
+                      opacity: [0, 1, 0],
+                      x: [Math.random() * 100 + "%", Math.random() * 100 + "%", Math.random() * 100 + "%"],
+                      y: [Math.random() * 100 + "%", Math.random() * 100 + "%", Math.random() * 100 + "%"],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: i * 0.3,
+                    }}
+                    className="absolute w-2 h-2 bg-yellow-400 rounded-full"
+                  />
+                ))}
+            </AnimatePresence>
+          </div>
+
+          {/* Card Content */}
+          <div className="relative z-10 h-full flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2">
+                <motion.div
+                  animate={isProcessing ? { rotate: 360 } : { rotate: 0 }}
+                  transition={{ duration: 1, repeat: isProcessing ? Infinity : 0 }}
+                >
+                  <Zap className="w-6 h-6 text-yellow-400" />
+                </motion.div>
+                <span className="font-bold text-lg">CryptoCredit</span>
+              </div>
+              <button
+                onClick={() => setShowDetails(!showDetails)}
+                className="p-1 rounded-full hover:bg-white/20 transition-colors"
+                disabled={isProcessing}
+              >
+                {showDetails ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <motion.div
+                className="text-xl font-mono tracking-wider"
+                animate={
+                  isProcessing
+                    ? {
+                        textShadow: [
+                          "0 0 0px rgba(255,255,255,0)",
+                          "0 0 10px rgba(255,255,255,0.8)",
+                          "0 0 0px rgba(255,255,255,0)",
+                        ],
+                      }
+                    : {}
+                }
+                transition={{ duration: 1, repeat: isProcessing ? Infinity : 0 }}
+              >
+                {showDetails ? cardNumber : cardNumber.replace(/\d(?=\d{4})/g, "•")}
+              </motion.div>
+
+              <div className="flex justify-between items-end">
+                <div>
+                  <div className="text-xs text-white/70 uppercase tracking-wide">Available Credit</div>
+                  <motion.div
+                    className="text-2xl font-bold"
+                    animate={isProcessing ? { scale: [1, 1.1, 1] } : { scale: 1 }}
+                    transition={{ duration: 0.5, repeat: isProcessing ? Infinity : 0 }}
+                  >
+                    ${availableCredit.toLocaleString()}
+                  </motion.div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-white/70 uppercase tracking-wide">Expires</div>
+                  <div className="font-mono">12/28</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Chip with glow effect */}
+          <motion.div
+            className="absolute top-16 left-6 w-10 h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-md"
+            animate={
+              isProcessing
+                ? {
+                    boxShadow: [
+                      "0 0 0px rgba(251, 191, 36, 0)",
+                      "0 0 20px rgba(251, 191, 36, 0.8)",
+                      "0 0 0px rgba(251, 191, 36, 0)",
+                    ],
+                  }
+                : {}
+            }
+            transition={{ duration: 1, repeat: isProcessing ? Infinity : 0 }}
+          />
+
+          {/* Contactless symbol with animation */}
+          <div className="absolute top-16 right-20">
+            <div className="flex space-x-1">
+              {[...Array(3)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className={`w-3 h-3 border-2 border-white/60 rounded-full ${i > 0 ? "opacity-40" : ""}`}
+                  animate={
+                    isProcessing
+                      ? {
+                          scale: [1, 1.3, 1],
+                          opacity: [0.6, 1, 0.6],
+                        }
+                      : {}
+                  }
+                  transition={{
+                    duration: 0.8,
+                    repeat: isProcessing ? Infinity : 0,
+                    delay: i * 0.2,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Credit Card Back (for flip effect) */}
+        <motion.div
+          className={`absolute inset-0 w-full h-56 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl shadow-2xl ${
+            isFlipped ? "" : "backface-hidden"
+          }`}
+          style={{
+            backfaceVisibility: "hidden",
+            transform: "rotateY(180deg)",
+          }}
+        >
+          <div className="h-full flex flex-col justify-center items-center text-white p-6">
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mb-4"
+            >
+              <CheckCircle className="w-8 h-8 text-white" />
+            </motion.div>
+            <div className="text-xl font-bold mb-2">Payment Processing</div>
+            <div className="text-gray-300 text-center">
+              Your transaction is being
+              <br />
+              securely processed on the blockchain
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Usage indicator */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-4 bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 rounded-xl p-4"
+        >
+          <div className="flex justify-between text-sm text-gray-400 mb-2">
+            <span>Credit Usage</span>
+            <span>{usagePercentage.toFixed(1)}% used</span>
+          </div>
+          <div className="w-full bg-gray-700 rounded-full h-2">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${usagePercentage}%` }}
+              transition={{ duration: 1, delay: 0.5 }}
+              className={`h-2 rounded-full ${
+                usagePercentage > 80
+                  ? "bg-gradient-to-r from-red-500 to-orange-500"
+                  : usagePercentage > 60
+                    ? "bg-gradient-to-r from-yellow-500 to-orange-500"
+                    : "bg-gradient-to-r from-green-500 to-cyan-500"
+              }`}
+            />
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-gray-500">
+            <span>Limit: ${creditLimit.toLocaleString()}</span>
+            <span>Debt: ${outstandingDebt.toFixed(2)}</span>
+          </div>
+        </motion.div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+type QuickActionsProps = {
+  onQuickAmount: (amount: string) => void;
+  availableCredit: number;
+};
+
+const QuickActions = ({ onQuickAmount, availableCredit }: QuickActionsProps) => {
+  const quickAmounts = [25, 50, 100, 250, 500].filter((amount) => amount <= availableCredit);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.2 }}
+      className="mb-6"
+    >
+      <h3 className="text-sm font-medium text-gray-400 mb-3">Quick Amounts</h3>
+      <div className="flex flex-wrap gap-2">
+        {quickAmounts.map((amount) => (
+          <motion.button
+            key={amount}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onQuickAmount(amount.toString())}
+            className="px-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-gray-300 hover:border-purple-500/50 hover:text-white transition-all duration-300"
+          >
+            ${amount}
+          </motion.button>
+        ))}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => onQuickAmount(availableCredit.toString())}
+          className="px-4 py-2 bg-purple-500/20 border border-purple-500/50 rounded-lg text-purple-300 hover:bg-purple-500/30 transition-all duration-300"
+        >
+          MAX
+        </motion.button>
       </div>
     </motion.div>
   );
@@ -102,8 +393,8 @@ const TabToggle = ({ activeTab, onTabChange }: TabToggleProps) => {
           />
         )}
         <span className="relative flex items-center gap-2 justify-center">
-          <Send className="w-4 h-4" />
-          Make a Payment
+          <CreditCard className="w-4 h-4" />
+          Pay with Credit
         </span>
       </motion.button>
 
@@ -145,6 +436,7 @@ const QRScannerModal = ({ isOpen, onClose, onScan }: QRScannerModalProps) => {
       setScanResult(undefined);
     }
   }, [scanResult, onScan]);
+
   if (!isOpen) return null;
 
   return (
@@ -175,7 +467,7 @@ const QRScannerModal = ({ isOpen, onClose, onScan }: QRScannerModalProps) => {
               }
             }}
           />
-          <p className="text-gray-400 text-sm">Point your camera at a QR code to scan the wallet address</p>
+          <p className="text-gray-400 text-sm mt-2">Point your camera at a QR code to scan the wallet address</p>
         </div>
       </motion.div>
     </motion.div>
@@ -215,6 +507,15 @@ const PaymentSection = ({
     setShowQRScanner(false);
   };
 
+  const handlePasteAddress = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setRecipientAddress(text);
+    } catch (err) {
+      console.error("Failed to read clipboard:", err);
+    }
+  };
+
   return (
     <>
       <motion.div
@@ -223,6 +524,15 @@ const PaymentSection = ({
         transition={{ duration: 0.6 }}
         className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 space-y-6"
       >
+        {/* Security Badge */}
+        <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
+          <Shield className="w-4 h-4 text-green-400" />
+          <span>Secured by blockchain technology</span>
+          <Lock className="w-4 h-4 text-green-400" />
+        </div>
+
+        <QuickActions onQuickAmount={setPaymentAmount} availableCredit={availableCredit} />
+
         {/* Recipient Address */}
         <div>
           <label className="block text-sm font-medium text-gray-400 mb-2">Recipient Wallet Address</label>
@@ -247,6 +557,7 @@ const PaymentSection = ({
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                onClick={handlePasteAddress}
                 className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors duration-300"
                 title="Paste from clipboard"
               >
@@ -256,6 +567,7 @@ const PaymentSection = ({
           </div>
         </div>
 
+        {/* Payment Amount */}
         <div>
           <div className="flex justify-between items-center mb-2">
             <label className="text-sm font-medium text-gray-400">Payment Amount</label>
@@ -267,43 +579,52 @@ const PaymentSection = ({
               value={paymentAmount}
               onChange={(e) => setPaymentAmount(e.target.value)}
               placeholder="0.00"
-              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 text-white placeholder-gray-500 focus:border-purple-500/50 focus:outline-none transition-all duration-300 pr-20"
+              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 text-white placeholder-gray-500 focus:border-purple-500/50 focus:outline-none transition-all duration-300 pr-20 text-2xl font-bold"
             />
             <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
-              <span className="text-gray-400">USDC</span>
-              <button
-                onClick={() => setPaymentAmount(availableCredit.toString())}
-                className="px-3 py-1 bg-purple-500/20 border border-purple-500/50 rounded-lg text-purple-400 hover:text-purple-300 transition-colors duration-300 text-sm font-medium"
-              >
-                MAX
-              </button>
+              <span className="text-gray-400 font-medium">USDC</span>
             </div>
           </div>
 
           {paymentAmount && (
-            <div className="mt-2 text-sm text-gray-400">
-              Estimated monthly interest: ${estimatedInterest.toFixed(2)} USDC
-            </div>
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg"
+            >
+              <div className="flex items-center gap-2 text-sm text-blue-300">
+                <Info className="w-4 h-4" />
+                <span>Estimated monthly interest: ${estimatedInterest.toFixed(2)} USDC (5% APR)</span>
+              </div>
+            </motion.div>
           )}
         </div>
 
+        {/* Payment Button */}
         <GlowingButton
           onClick={() => onPayment({ recipientAddress, paymentAmount })}
-          className="w-full"
+          className="w-full py-4 text-lg font-semibold"
           disabled={!isValidPayment || isProcessing}
         >
           {isProcessing ? (
             <>
-              <Loader className="w-5 h-5 animate-spin" />
-              Processing...
+              <Loader className="w-6 h-6 animate-spin" />
+              Processing Payment...
             </>
           ) : (
             <>
-              Pay Now
-              <Send className="w-5 h-5" />
+              <CreditCard className="w-6 h-6" />
+              Pay ${paymentAmount || "0"} with Credit
+              <Send className="w-6 h-6" />
             </>
           )}
         </GlowingButton>
+
+        {/* Payment Info */}
+        <div className="flex items-center gap-2 text-xs text-gray-500 justify-center">
+          <Lock className="w-3 h-3" />
+          <span>Your payment will be processed instantly on the Flow blockchain</span>
+        </div>
       </motion.div>
 
       <AnimatePresence>
@@ -320,6 +641,18 @@ type ReceiveSectionProps = {
 };
 
 const ReceiveSection = ({ walletAddress }: ReceiveSectionProps) => {
+  const [copied, setCopied] = useState(false);
+
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(walletAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy address:", err);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -331,28 +664,50 @@ const ReceiveSection = ({ walletAddress }: ReceiveSectionProps) => {
         <h3 className="text-xl font-semibold text-white mb-2">Receive Payments</h3>
         <p className="text-gray-400 text-sm">Share your QR code or wallet address to receive payments</p>
       </div>
-      <div className="bg-white p-4 mx-auto w-fit rounded-lg">
+
+      <div className="bg-white p-6 mx-auto w-fit rounded-xl shadow-lg">
         <QRCodeSVG
           value={walletAddress}
+          size={200}
           bgColor={"#ffffff"}
           fgColor={"#000000"}
-          level={"L"}
+          level={"M"}
           imageSettings={{
             src: "/logo.png",
             x: undefined,
             y: undefined,
-            height: 24,
-            width: 24,
+            height: 32,
+            width: 32,
             opacity: 1,
             excavate: true,
           }}
         />
       </div>
+
+      <div className="space-y-3">
+        <div className="text-center">
+          <p className="text-sm text-gray-400 mb-2">Your Wallet Address</p>
+          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 flex items-center justify-between">
+            <span className="text-sm font-mono text-gray-300 truncate">
+              {walletAddress.slice(0, 16)}...{walletAddress.slice(-6)}
+            </span>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={copyAddress}
+              className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            >
+              {copied ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+            </motion.button>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-4">
         <div className="flex items-start gap-3">
           <Info className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
           <p className="text-sm text-gray-300">
-            Others can scan this QR code or use your wallet address to send you payments directly.
+            Others can scan this QR code or use your wallet address to send you payments directly to your wallet.
           </p>
         </div>
       </div>
@@ -457,13 +812,13 @@ const RecentTransactions = ({
   const getTransactionLabel = (type: string): string => {
     switch (type) {
       case "borrow":
-        return "Borrowed";
+        return "Credit Used";
       case "repay":
-        return "Repaid";
+        return "Payment Made";
       case "stake":
-        return "Staked Collateral";
+        return "Collateral Added";
       case "payment":
-        return "Payment";
+        return "Credit Payment";
       default:
         return type.charAt(0).toUpperCase() + type.slice(1);
     }
@@ -483,7 +838,10 @@ const RecentTransactions = ({
       className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-6 h-full flex flex-col"
     >
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
-        <h3 className="text-lg font-semibold text-white">Recent Transactions</h3>
+        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+          <CreditCard className="w-5 h-5 text-purple-400" />
+          Recent Activity
+        </h3>
         {onRefresh && (
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -507,15 +865,8 @@ const RecentTransactions = ({
         {loading ? (
           <div className="text-center py-8">
             <Loader className="w-8 h-8 text-purple-400 mx-auto mb-3 animate-spin" />
-            <p className="text-gray-400 text-sm">Loading transaction history...</p>
-          </div>
-        ) : transactions.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center mx-auto mb-3">
-              <DollarSign className="w-6 h-6 text-gray-400" />
-            </div>
-            <p className="text-gray-400 text-sm">No transactions found</p>
-            <p className="text-gray-500 text-xs mt-1">Your transaction history will appear here</p>
+            <p className="text-gray-400 text-sm">No activity yet</p>
+            <p className="text-gray-500 text-xs mt-1">Your credit card activity will appear here</p>
           </div>
         ) : (
           <div
@@ -556,7 +907,6 @@ const RecentTransactions = ({
 
 export default function PaymentsPage() {
   const { authenticated, user, login } = usePrivy();
-
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState("payment");
@@ -877,7 +1227,7 @@ export default function PaymentsPage() {
 
     try {
       setIsProcessing(true);
-      setTransactionStatus({ status: "pending", message: "Preparing payment..." });
+      setTransactionStatus({ status: "pending", message: "Preparing credit payment..." });
 
       const walletClient = getWalletClient(user.wallet.address);
       if (!walletClient) {
@@ -886,7 +1236,7 @@ export default function PaymentsPage() {
 
       const amountInWei = BigInt(Math.floor(amount * 1e6));
 
-      setTransactionStatus({ status: "pending", message: "Borrowing funds..." });
+      setTransactionStatus({ status: "pending", message: "Using credit line..." });
 
       const borrowTx = await walletClient.writeContract({
         address: CREDIT_MANAGER_ADDRESS as `0x${string}`,
@@ -897,11 +1247,11 @@ export default function PaymentsPage() {
         chain: flowTestnet,
       });
 
-      setTransactionStatus({ status: "pending", message: "Waiting for borrow confirmation..." });
+      setTransactionStatus({ status: "pending", message: "Confirming credit usage..." });
 
       await publicClient.waitForTransactionReceipt({ hash: borrowTx });
 
-      setTransactionStatus({ status: "pending", message: "Transferring funds to recipient..." });
+      setTransactionStatus({ status: "pending", message: "Sending payment to recipient..." });
 
       const transferTx = await walletClient.writeContract({
         address: USDC_ADDRESS as `0x${string}`,
@@ -912,13 +1262,13 @@ export default function PaymentsPage() {
         chain: flowTestnet,
       });
 
-      setTransactionStatus({ status: "pending", message: "Waiting for transfer confirmation..." });
+      setTransactionStatus({ status: "pending", message: "Finalizing payment..." });
 
       await publicClient.waitForTransactionReceipt({ hash: transferTx });
 
       setTransactionStatus({
         status: "success",
-        message: `Payment of $${amount.toLocaleString()} USDC sent successfully!`,
+        message: `Credit payment of ${amount.toLocaleString()} USDC sent successfully!`,
       });
 
       await Promise.all([fetchUserData(), fetchTransactionHistory()]);
@@ -929,14 +1279,14 @@ export default function PaymentsPage() {
       setTimeout(() => setTransactionStatus(null), 5000);
     } catch (error: any) {
       console.error("Payment error:", error);
-      let errorMessage = "Payment failed. Please try again.";
+      let errorMessage = "Credit payment failed. Please try again.";
 
       if (error.message?.includes("insufficient")) {
         errorMessage = "Insufficient credit limit for this payment.";
       } else if (error.message?.includes("rejected")) {
         errorMessage = "Transaction was rejected by user.";
       } else if (error.message?.includes("credit line")) {
-        errorMessage = "Credit line not active. Please stake collateral first.";
+        errorMessage = "Credit line not active. Please activate your credit card first.";
       }
 
       setTransactionStatus({ status: "error", message: errorMessage });
@@ -959,11 +1309,13 @@ export default function PaymentsPage() {
             transition={{ duration: 0.6 }}
             className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 text-center"
           >
-            <Wallet className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-4">Connect Wallet to Access Payments</h2>
-            <p className="text-gray-400 mb-6">Connect your wallet to make payments and manage your credit line</p>
+            <CreditCard className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-4">Connect Wallet to Access Your Credit Card</h2>
+            <p className="text-gray-400 mb-6">
+              Connect your wallet to activate your virtual credit card and start making payments
+            </p>
             <GlowingButton onClick={login}>
-              Connect Wallet
+              Connect Wallet & Activate Card
               <ArrowRight className="w-5 h-5" />
             </GlowingButton>
           </motion.div>
@@ -979,15 +1331,19 @@ export default function PaymentsPage() {
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-white via-purple-200 to-cyan-200 bg-clip-text text-transparent">
-            Use Your Credit
+            Virtual Credit Card
           </h1>
+          <p className="text-gray-400 mt-2 text-lg">Pay instantly with your crypto credit line</p>
           <ConnectWalletButton />
         </div>
 
-        <CreditSummaryBanner
+        <VirtualCreditCard
           creditLimit={creditData.creditLimit}
           availableCredit={creditData.availableCredit}
           outstandingDebt={creditData.outstandingDebt}
+          userAddress={user?.wallet?.address || ""}
+          isProcessing={isProcessing}
+          paymentAmount={paymentAmount}
         />
 
         <TabToggle activeTab={activeTab} onTabChange={setActiveTab} />
@@ -1027,7 +1383,8 @@ export default function PaymentsPage() {
                 </motion.div>
               )}
               <GlowingButton className="mt-4 w-full flex justify-center" onClick={() => navigate("/borrow/dashboard")}>
-                Go to Dashboard
+                <Wallet className="w-5 h-5" />
+                Go to Credit Dashboard
                 <ArrowRight className="w-5 h-5" />
               </GlowingButton>
             </AnimatePresence>
